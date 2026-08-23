@@ -1,0 +1,123 @@
+name: build
+
+# Two things this exists for, and only two:
+#
+#   * anyone can see the tests pass on a machine that is not the author's;
+#   * the executable people download is built from the commit they can read,
+#     by a runner nobody owns, with a provenance attestation to prove it.
+#
+# The second one is the point. The app is unsigned -- a free code-signing
+# certificate needs this workflow to exist first (SignPath Foundation) -- so
+# until then, "built in the open from this exact source" is the strongest
+# honest claim available. See docs/STATE.md.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor the README promises, and the version the author runs.
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run the suite
+        # No display on a runner, and the suite builds real windows. The tests
+        # are otherwise unchanged: they never touch the network either.
+        env:
+          QT_QPA_PLATFORM: offscreen
+          # Never let a test see, or write, a real user's cache or settings.
+          CC_DATA_DIR: ${{ runner.temp }}\cc-test
+        run: python -m unittest discover -s tests -v
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write      # provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: python build.py
+
+      - name: Show what went into the executable
+        # The version resource and the bootloader provenance, in the public
+        # log, so the claims in CLAUDE.md can be checked rather than believed.
+        shell: pwsh
+        run: |
+          $exe = "dist\CharacterCheck\CharacterCheck.exe"
+          (Get-Item $exe).VersionInfo | Format-List
+          "sha256: $((Get-FileHash $exe -Algorithm SHA256).Hash)"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\CharacterCheck `
+            -DestinationPath CharacterCheck-win64.zip -CompressionLevel Optimal
+          "zip sha256: $((Get-FileHash CharacterCheck-win64.zip -Algorithm SHA256).Hash)"
+
+      # Cryptographic provenance: says this archive came out of this workflow,
+      # from this commit. Not a code signature -- Windows still shows
+      # "unknown publisher" -- but it is verifiable by anyone:
+      #   gh attestation verify CharacterCheck-win64.zip -R <owner>/<repo>
+      - uses: actions/attest-build-provenance@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          subject-path: CharacterCheck-win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CharacterCheck-win64
+          path: CharacterCheck-win64.zip
+          retention-days: 30
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: CharacterCheck-win64
+
+      - name: Publish the archive and its hash
+        run: |
+          sha256sum CharacterCheck-win64.zip | tee SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            CharacterCheck-win64.zip SHA256SUMS.txt
+        env:
+          GH_TOKEN: ${{ github.token }}

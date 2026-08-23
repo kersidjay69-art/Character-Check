@@ -1,170 +1,185 @@
 # Character Check
 
-Скопировал ники из локала EVE — узнал, кто из них светил цино.
+[![build](https://github.com/kersidjay69-art/Character-Check/actions/workflows/ci.yml/badge.svg)](https://github.com/kersidjay69-art/Character-Check/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Приложение следит за буфером обмена. Когда ты копируешь список участников
-локала (клик по нику в списке, `Ctrl+A`, `Ctrl+C`) или один ник, оно проверяет
-килборд каждого пилота и показывает тех, у кого есть след цино-активности.
+*[Русская версия](README.ru.md)*
 
-## Что оно считает уликой
+Paste a local member list from EVE Online — find out which of those pilots
+have lit a cyno.
 
-| Вердикт | Что нашли | Доля в хабе |
+The app watches the clipboard. When you copy a local member list (click a name
+in the member list, `Ctrl+A`, `Ctrl+C`) or a single name, it checks each
+pilot's killboard and shows you the ones with cyno history.
+
+## What counts as evidence
+
+| Verdict | What was found | Share of a trade hub |
 |---|---|---|
-| **ЦИНО** (красный) | ковертный или обычный цино-генератор был на корабле пилота | 6.5% |
-| **индастриал** (синий) | индустриальный цино-модуль | 1.4% |
-| **цино-хулл** (жёлтый) | погибал или убивал на боевом корабле, способном нести такой цино (Falcon, Purifier, Black Ops), но самого цино не было | 20.9% |
-| **замечен** (серый) | только Covert Ops или T3 — цино в них встаёт, но летают на них все | 6.4% |
-| чисто | ничего из перечисленного | 64.8% |
+| **CYNO** (red) | a covert or regular cyno generator was on the pilot's ship | 6.5% |
+| **industrial** (blue) | an industrial cyno module | 1.4% |
+| **cyno hull** (yellow) | died in, or killed from, a combat hull that can carry such a cyno (Falcon, Purifier, Black Ops) — but no cyno was aboard | 20.9% |
+| **seen** (grey) | only a Covert Ops or a T3 — a cyno fits, but everyone flies those | 6.4% |
+| clean | none of the above | 64.8% |
 
-**По умолчанию ищутся только два первых — те, у кого цино было на руках.**
-Жёлтых и серых включает фильтр «потенциальное цино» (воронка в шапке), и он
-выключен не из вкусовщины: без него проверка идёт **вдвое быстрее**. Модуль
-виден только на собственных потерях пилота, поэтому второй запрос к
-килборду — тот, что ищет, на чём он летал в чужих килмейлах, — при выключенном
-фильтре не может изменить ни одной строки на экране и просто не делается.
+**By default only the first two are looked for** — the pilots who actually had
+a cyno in their hands. The yellow and grey ones are switched on by the
+"potential cyno" filter (the funnel in the header), and it is off for a
+reason: without it a scan runs **twice as fast**. Module evidence exists only
+on a pilot's own losses, so the second request to the killboard — the one that
+asks what he was flying in other people's killmails — cannot change a single
+row on screen while that filter is off, and is simply never made.
 
-Улика засчитывается, только если корабль может нести именно этот цино **сегодня**.
-До ребаланса цино фитили на новичковые фрегаты, а стелс-бомберы носили обычный
-вместо ковертного — такие килмейлы настоящие, но о нынешних возможностях пилота
-не говорят ничего.
+Evidence counts only if the ship can carry that exact cyno **today**. Before
+the rebalance, cynos were fitted to rookie frigates and stealth bombers
+carried the non-covert one; those killmails are real, but they say nothing
+about what the pilot can do now.
 
-Приоритет определяется **типом модуля**, а не тем, был он зафичен или лежал в
-трюме: ковертный цино в трюме — та же угроза одним андоком позже. Индустриальный
-цино стоит ниже даже голого боевого хулла, потому что зажигает мост только для
-джамп-фрейтера и рорквала.
+Priority comes from the **module type**, not from whether it was fitted or
+stowed: a covert cyno in the hold is the same threat one undock later. The
+industrial cyno ranks below even a bare combat hull, because it bridges
+nothing but jump freighters and the Rorqual.
 
-По каждому пилоту показывается, **какое именно цино** найдено, список кораблей
-с датами и ссылки на конкретные килмейлы.
+For each pilot you get **which cyno** was found, the ships involved with
+dates, and links to the individual killmails.
 
-## Фильтры
+## Filters
 
-Воронка в шапке, три переключателя:
+The funnel in the header, three switches:
 
-* **Потенциальное цино** — жёлтые и серые вердикты. Выключено по умолчанию;
-  включение удваивает время проверки.
-* **Индастриал цино** — включено. Выключить, и пилот, у которого не было
-  ничего кроме индустриального модуля, пропадает из списка совсем.
-* **До первой боевой цино** — включено. Найдя ковертный или обычный цино,
-  дальше по этому пилоту не копать. Применяется только к массовой вставке
-  (больше 10 ников): одиночный ник считается за доли секунды, экономить там
-  нечего.
+* **Potential cyno** — the yellow and grey verdicts. Off by default; turning
+  it on doubles the time a scan takes.
+* **Industrial cyno** — on. Turn it off and a pilot who had nothing but an
+  industrial module disappears from the list entirely.
+* **Stop at the first combat cyno** — on. Once a covert or regular cyno is
+  found, stop digging into that pilot. Applied only to a mass paste (more
+  than 10 names): a single name takes a fraction of a second either way.
 
-Переключение сразу перезапускает проверку.
+Flipping any of them restarts the check immediately.
 
-## Важное ограничение
+## What it cannot tell you
 
-Проверяются **последние 200 потерь** пилота — одна страница килборда. Для
-живого локала это обычно вся его история; для пилота, который теряет корабли
-каждый день, — последние недели. Честная формулировка: «в последних 200
-лоссах», а не «когда-либо». Глубину задаёт `list_pages` в конфиге.
+It checks the pilot's **last 200 losses** — one page of the killboard. For a
+typical local that is his whole history; for someone who loses a ship daily it
+is the last few weeks. The honest phrasing is "in the last 200 losses", not
+"ever". Depth is set by `list_pages` in the config.
 
-Инструмент видит только то, что попало на килборд. Цино-алт, который ни разу не
-терял корабль и ни разу не засветился в чужом килмейле, **невидим**. Честная
-формулировка того, что вы получаете, — «известные цино-алты», а не «цино-алты».
+The tool sees only what reached a killboard. A cyno alt who has never lost a
+ship and never appeared in someone else's killmail is **invisible**. What you
+are getting is "known cyno alts", not "cyno alts".
 
-Обратное тоже верно: «цино-хулл» ≠ виновен. Половина активных PvP-пилотов
-летала на Force Recon, а Venture и хаулеры теряют все подряд. Поэтому уровни
-разделены, а не свалены в один флаг.
+The reverse holds too: "cyno hull" ≠ guilty. Half of all active PvP pilots
+have flown a Force Recon, and Ventures and haulers get lost by everyone. That
+is why the levels are separate rather than collapsed into one flag.
 
-## Установка и запуск
+## Install and run
 
-Нужен Python 3.11+.
+Needs Python 3.11+.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Дальше — `start.cmd`. Он находит `pythonw.exe` и запускает приложение **без
-окна консоли**; полагаться на двойной клик по `.pyw` нельзя, потому что
-ассоциации для `.py`/`.pyw` в Windows часто не зарегистрированы вовсе.
+Then `start.cmd`. It locates `pythonw.exe` and starts the app **without a
+console window**; double-clicking a `.pyw` is not reliable, because Windows
+often has no association registered for `.py`/`.pyw` at all.
 
 ```bash
-start.cmd        # обычный запуск, без консоли
-python main.py   # то же самое, но с консолью -- когда нужны логи
+start.cmd        # normal start, no console
+python main.py   # the same, with a console -- when you want the logs
 ```
 
-Или собрать себе самостоятельную сборку, которой Python уже не нужен:
+Or build a standalone copy that needs no Python:
 
 ```bash
 pip install pyinstaller
 python build.py                       # -> dist/CharacterCheck/
-python build.py --dest "C:/Users/.../Desktop/CC"
-python build.py --onefile             # одним файлом вместо папки
+python build.py --dest "C:/somewhere/CC"
+python build.py --onefile             # one file instead of a folder
 ```
 
-По умолчанию — папка: без консоли, окно за 0.7 секунды. Настройки — в
-`%APPDATA%\CharacterCheck\`, общие с запуском из исходников. **Кэш лежит
-рядом с самим приложением**, в папке `cache\`: копию на флешке так можно
-носить с собой вместе с уже найденными ответами.
+A folder by default: no console, window up in 0.7 s. Settings live in
+`%APPDATA%\CharacterCheck\`, shared with a source checkout. **The cache sits
+next to the application itself**, in `cache\` — so a copy on a USB stick
+carries its answers with it.
 
-`--onefile` собирает всё в один exe — удобнее отдать, но он распаковывает себя
-во временную папку при каждом запуске, отчего стартует втрое дольше и вызывает
-подозрения у антивирусов (см. ниже).
+`--onefile` packs everything into a single exe. Handier to pass around, but it
+unpacks itself into a temp folder on every launch, which makes it start three
+times slower and looks suspicious to antivirus heuristics (see below).
 
-### Если антивирус ругается
+### If your antivirus complains
 
-Такое бывает и это ложное срабатывание. Приложения на Python упаковываются
-PyInstaller'ом, а он везёт в каждом exe один и тот же стартовый код —
-одинаковый у всех программ на свете, включая те, что писали не с добрыми
-намерениями. Некоторые движки реагируют именно на него, а не на содержимое.
+It happens, and it is a false positive. Python apps are packaged with
+PyInstaller, which puts the same startup code into every executable it makes —
+identical across every program on earth, including the ones not written with
+good intentions. Some engines react to that, not to the contents.
 
-На 20.08.2026 на VirusTotal ругались два движка из семидесяти — Bkav Pro и
-Zillya, оба стабильно в верхушке рейтинга ложных срабатываний. Движки, которые
-реально что-то блокируют (Defender, ESET, Kaspersky, BitDefender), молчат.
+As of 2026-08-20 two engines out of seventy flagged it on VirusTotal — Bkav
+Pro and Zillya, both reliably near the top of the false-positive rankings.
+The engines that actually block things (Defender, ESET, Kaspersky,
+BitDefender) are silent.
 
-Сборка **не подписана**: бесплатный сертификат для открытых проектов требует
-публичного репозитория, а он ещё не создан. Самоподписанный сертификат
-ставить не буду — Windows всё равно скажет «Неизвестный издатель», и он
-создавал бы ложное впечатление проверенности.
+The build is **not code-signed**: the free certificate for open-source
+projects requires a public repository and a CI build, which now exist, so this
+may change. A self-signed certificate is deliberately not used — Windows would
+still say "unknown publisher", and it would create a false impression of being
+vetted.
 
-Что можно сделать вместо того, чтобы верить на слово: собрать из исходников
-самому — вся программа здесь, и `python build.py` даёт ровно то же самое.
+Instead of taking any of that on faith:
 
-Приложение сворачивается в трей и ждёт. Скопируйте список локала в игре
-(клик по нику в списке участников, `Ctrl+A`, `Ctrl+C`) — окно с результатами
-поднимется само.
+* build it yourself — the whole program is here, and `python build.py`
+  produces exactly the same thing;
+* take a build from [Releases](https://github.com/kersidjay69-art/Character-Check/releases):
+  GitHub Actions builds it from that exact commit, on a machine nobody here
+  owns, and attaches a provenance attestation. Verify with
+  `gh attestation verify CharacterCheck-win64.zip -R kersidjay69-art/Character-Check`.
+  That is not a code signature — Windows will still say "unknown publisher" —
+  but it is a checkable claim about where the file came from.
 
-В строке пилота: ник, покрашенный в цвет угрозы, иконки найденных цино-модулей
-и иконки кораблей, на которых пилот замечен. Строка раскрывается в список улик —
-по строке на каждое сочетание «что случилось + корабль + модуль», с датой
-последнего раза и количеством; двойной клик открывает пилота или килмейл на
-zKillboard.
+The app minimises to the tray and waits. Copy a local member list in game and
+the results window comes up on its own.
 
-Иконки докачиваются с образного сервера CCP при первом запуске — около 76
-файлов и полмегабайта, один раз.
+A pilot's row shows: the name in the colour of its verdict, icons for the cyno
+modules found, and icons for the ships he was seen in. The row expands into
+the evidence — one line per "what happened + ship + module", with the date of
+the most recent one and a count; a double-click opens the pilot or the
+killmail on zKillboard.
 
-Пилоты появляются в списке по мере проверки, а не все разом в конце.
-Те, кого уже находили раньше, показываются мгновенно — до первого запроса в
-сеть; наведите на ник, чтобы увидеть дату последней проверки.
+Icons are fetched from CCP's image server on first run — about 76 files and
+half a megabyte, once.
 
-Окно запоминает своё положение и размер, в том числе на втором и третьем
-мониторе. Кнопка-булавка держит его над игрой в windowed/borderless.
+Pilots appear as they are checked, not all at once at the end. Anyone found
+before shows up instantly — before the first network request; hover a name to
+see when it was last checked.
 
-Интерфейс на английском и русском — кнопка **RU/EN** в шапке, переключается
-мгновенно. По умолчанию английский.
+The window remembers its position and size, including on a second or third
+monitor. The pin button keeps it above the game in windowed/borderless mode.
 
-**EVE в полноэкранном режиме перекрывает окно.** Держите игру в
-windowed/borderless или выносите приложение на второй монитор.
+The interface is English and Russian — the **RU/EN** button in the header
+switches instantly. English by default.
 
-Тот же движок без графики, если удобнее консоль:
+**EVE in fullscreen paints over the window.** Keep the game in
+windowed/borderless, or put the app on a second monitor.
+
+The same engine without a GUI, if a console suits you better:
 
 ```bash
 python -m core.console
 ```
 
-Разовая проверка файла со списком, без слежения за буфером:
+A one-shot check of a file of names, without watching the clipboard:
 
 ```bash
 python -m core.console --once names.txt --show-clean
 ```
 
-Те же фильтры есть и в консоли — `--potential`, `--no-industrial`,
-`--all-cyno`. Флаг переопределяет настройку только на один запуск.
+The same filters exist there — `--potential`, `--no-industrial`,
+`--all-cyno`. A flag overrides the stored setting for that run only.
 
-## Настройка
+## Configuration
 
-Файл `%APPDATA%\CharacterCheck\config.json` создаётся при первом запуске.
-Настраивать ничего не обязательно.
+`%APPDATA%\CharacterCheck\config.json` is created on first run. You do not
+have to configure anything.
 
 ```json
 {
@@ -180,89 +195,85 @@ python -m core.console --once names.txt --show-clean
 }
 ```
 
-### Кем подписаны ваши запросы
+### Who your requests are signed by
 
-CCP просит сторонние инструменты представляться в `User-Agent`, а zKillboard вовсе
-отвечает 403 на пустой. Заголовок собирается из **двух разных вещей**:
+CCP asks third-party tools to identify themselves in the `User-Agent`, and
+zKillboard answers 403 to an empty one outright. The header is assembled from
+**two different things**:
 
 ```
 CharacterCheck/0.1 (+https://github.com/kersidjay69-art/Character-Check; Leya Sokard)
                      |                                                    |
-                     программа, одна на все копии                         кто запустил эту
+                     the software, same in every copy                      who is running this one
 ```
 
-Ссылка на репозиторий одинакова во всех копиях — это адрес для претензий
-к самому инструменту. Вторая часть — вы: имя подставляется автоматически
-из заголовков ваших чатлогов, настраивать ничего не надо. Поле `contact`
-нужно, только если чатлогов нет или хочется указать другое — Discord,
-почту, что угодно.
+The repository link is identical in every copy — it is the address for
+complaints about the tool itself. The second part is you: the name is filled
+in automatically from your chat log headers, and needs no setup. The `contact`
+field is only for when there are no chat logs, or you want to give something
+else — Discord, an email, anything.
 
-Это разделение не косметическое. zKillboard банит по IP, а значит за трафик
-отвечает тот, чья машина его создаёт. Контакты автора лежат в окне
-«О программе» и не отправляются никуда — это проверяется тестом
-`tests/test_distribution.py`.
+That split is not cosmetic. zKillboard bans by IP, so whoever's machine makes
+the traffic is who answers for it. The author's own contacts live in the About
+window and are never sent anywhere — `tests/test_distribution.py` enforces it.
 
-## Предохранитель
+## The guard
 
-Приложение не должно дёргать сеть каждый раз, когда вы что-то копируете.
-Поэтому текст из буфера проходит четыре ступени, и первые три бесплатны:
+The app must not hit the network every time you copy something. So clipboard
+text passes four stages, and the first three are free:
 
-1. быстрые отсечки — ссылки, табуляция (D-Scan, фиты, инвентарь), кириллица,
-   слишком длинные строки, слишком большой объём;
-2. маска имени EVE — проверена на 329 живых никах из чатлогов, включая
-   китайские (`冰喵`), целиком цифровые (`599847624`) и с апострофами
-   (`Io ''Midnight'' Shadow`);
-3. **ваш собственный персонаж в списке** — если он там есть, это гарантированно
-   список локала. Имена ваших пилотов берутся из чатлогов автоматически,
-   настраивать ничего не нужно. Себя приложение не проверяет;
-4. ESI — последний арбитр: имя, которое не разрешается в персонажа, молча
-   отбрасывается.
+1. quick rejections — URLs, tabs (D-Scan, fits, inventory), Cyrillic, lines
+   that are too long, bodies that are too large;
+2. the EVE name mask — verified against 329 real names from chat logs,
+   including Chinese ones (`冰喵`), all-digit ones (`599847624`) and ones with
+   apostrophes (`Io ''Midnight'' Shadow`);
+3. **your own character in the list** — if he is there, this is certainly a
+   local roster. Your pilots' names are taken from the chat logs
+   automatically. The app never checks you;
+4. ESI, the final arbiter: a name that does not resolve to a character is
+   dropped without a word.
 
-Скопировали кусок кода, ссылку или русский текст — приложение промолчит,
-не сделав ни одного запроса.
+Copy a snippet of code, a link or a paragraph of prose and the app stays
+silent, without making a single request.
 
-## Скорость
+## Speed
 
-Обращения к zKillboard ограничены 8 запросами в секунду. Это не настройка:
-цена превышения — блокировка IP на час. Отсюда и всё остальное — время
-проверки это, по сути, число запросов, делённое на восемь.
+Requests to zKillboard are capped at 8 per second. That is not a setting: the
+price of exceeding it is an IP ban for an hour. Everything else follows from
+it — scan time is essentially the number of requests divided by eight.
 
-С фильтрами по умолчанию на пилота уходит **один** запрос: полсотни ников —
-семь секунд, полный торговый хаб — около трёх минут. Включите «потенциальное
-цино», и запросов станет два на пилота, со всеми вытекающими.
+With the default filters a pilot costs **one** request: fifty names take seven
+seconds, a full trade hub about three minutes. Turn on "potential cyno" and it
+becomes two per pilot, with everything that implies.
 
-Кэшируются только пилоты, **у которых цино нашлось**: улики монотонны (раз
-погиб с цино — это навсегда), так что такой вердикт хранится вечно и пилот
-больше не запрашивается. Чистые не хранятся вовсе — в EVE создаётся около
-тридцати тысяч персонажей в сутки, и быть справочником всех встреченных ников
-эта программа не пытается. Поэтому повторная вставка того же локала не
-мгновенна: красные и синие появляются сразу, остальные считаются заново.
+Only pilots **who were found to have a cyno** are cached: the evidence is
+monotone (die with a cyno once and it is forever), so that verdict is kept
+permanently and the pilot is never fetched again. Clean ones are not stored at
+all — EVE creates about thirty thousand characters a day, and this program
+does not try to be a directory of every name ever seen. So pasting the same
+local twice is not instant: the reds and blues appear immediately, the rest
+are computed again.
 
-Кэш ограничен сотней мегабайт (`cache_limit_mb`), при переполнении вытесняются
-самые давно проверенные. Это предохранитель, а не механизм: чтобы его достичь,
-надо встретить около двух миллионов разных цино-пилотов.
+The cache is capped at 100 MB (`cache_limit_mb`); on overflow the least
+recently checked go first. That is a safety valve, not a mechanism: reaching
+it takes about two million distinct cyno pilots.
 
-## Границы
+## Boundaries
 
-Приложение только читает: файлы логов и буфер обмена. Оно **не** нажимает
-клавиши в игре, не читает память клиента, не трогает кэш и не перехватывает
-трафик. Копирование остаётся вашим действием — это то, что отделяет пассивный
-инструмент от запрещённой автоматизации.
+The app only reads: log files and the clipboard. It does **not** press keys in
+the game, read client memory, touch the cache or intercept traffic. Copying
+stays your action — that is what separates a passive tool from prohibited
+automation.
 
-Разработчикам: `CLAUDE.md` — карта проекта и список инвариантов.
+For developers: `CLAUDE.md` is the project map and the list of invariants.
 
-## Лицензия и ответственность
+## Licence and liability
 
-Apache License 2.0 — см. `LICENSE`. Без гарантий (§7) и без ответственности
-автора (§8). Форкам нельзя использовать имя исходного проекта для
-продвижения своих сборок (§6).
+Apache License 2.0 — see `LICENSE`. No warranty (§7) and no liability for the
+author (§8). Forks may not use the original project's name to promote their
+own builds (§6).
 
-Приложение не связано с CCP hf и не одобрено ею. CCP принципиально
-не одобряет никакие сторонние инструменты: «any use of third party tools
-is done entirely at your own risk». EVE Online и все связанные материалы —
-собственность CCP hf.
-
-Скорость обращений к zKillboard — константа в коде, а не настройка,
-и это проверяется тестом. Если вы форкнули проект и подняли лимит —
-смените и `PROJECT_URL`, чтобы ваши запросы не представлялись чужим
-репозиторием.
+This application is not affiliated with or endorsed by CCP hf. CCP endorses no
+third-party tools as a matter of policy: "any use of third party tools is done
+entirely at your own risk". EVE Online and all related material are the
+property of CCP hf.
