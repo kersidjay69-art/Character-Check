@@ -215,18 +215,26 @@ class TestBootloaderGuard(unittest.TestCase):
     def setUpClass(cls):
         import build
         cls.build = build
+        cls.pyi = build._pyinstaller()
+
+    # PyInstaller is a build tool and is deliberately absent from
+    # requirements.txt, so this whole class has to survive without it -- on
+    # CI, and for anyone who only wants to run the program.
 
     def test_the_installed_version_is_one_we_have_hashes_for(self):
         """Fails deliberately after a PyInstaller upgrade: the new stock
         hashes have to be recorded, or the guard cannot tell stock from
         custom and quietly says nothing."""
-        import PyInstaller
-        self.assertIn(PyInstaller.__version__, self.build.STOCK_BOOTLOADERS,
+        if self.pyi is None:
+            self.skipTest("PyInstaller not installed")
+        self.assertIn(self.pyi.__version__, self.build.STOCK_BOOTLOADERS,
                       "add this version's stock hashes to STOCK_BOOTLOADERS")
 
     def test_an_unknown_version_is_reported_as_unknown_not_as_custom(self):
         """The failure mode that would turn this into decoration: a check that
         passes on everything it has not seen before."""
+        if self.pyi is None:
+            self.skipTest("PyInstaller not installed")
         saved = dict(self.build.STOCK_BOOTLOADERS)
         self.build.STOCK_BOOTLOADERS.clear()
         try:
@@ -240,7 +248,10 @@ class TestBootloaderGuard(unittest.TestCase):
         """--windowed embeds runw, not run. Checking the console one would
         pass while shipping the stock binary."""
         self.assertEqual("runw.exe", self.build.WINDOWED_BOOTLOADER)
-        self.assertIn("runw.exe", self.build.bootloader_path())
+        if self.pyi is None:
+            self.assertEqual("", self.build.bootloader_path())
+        else:
+            self.assertIn("runw.exe", self.build.bootloader_path())
 
     def test_recorded_hashes_are_full_sha256(self):
         """A truncated hash silently matches nothing and reads as "custom"."""
@@ -251,7 +262,8 @@ class TestBootloaderGuard(unittest.TestCase):
 
     def test_reporting_never_raises(self):
         """A build must not die over provenance -- the stock bootloader still
-        produces a working program, just a more suspicious one."""
+        produces a working program, just a more suspicious one. Nor may it die
+        where PyInstaller is not installed at all."""
         self.assertIn(self.build.report_bootloader(),
                       ("stock", "custom", "unknown-version"))
 

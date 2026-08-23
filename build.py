@@ -275,10 +275,29 @@ STOCK_BOOTLOADERS = {
 WINDOWED_BOOTLOADER = "runw.exe"
 
 
+def _pyinstaller():
+    """The installed PyInstaller, or None.
+
+    None is a normal answer, not an error: PyInstaller is a build tool and is
+    deliberately absent from `requirements.txt`, so the test suite and any
+    other importer of this module has to survive without it.
+    """
+    try:
+        import PyInstaller
+    except ImportError:
+        return None
+    return PyInstaller
+
+
 def bootloader_path(name: str = WINDOWED_BOOTLOADER) -> str:
-    """Where PyInstaller keeps the bootloader it is about to embed."""
-    import PyInstaller
-    return os.path.join(os.path.dirname(PyInstaller.__file__), "bootloader",
+    """Where PyInstaller keeps the bootloader it is about to embed.
+
+    Empty string when PyInstaller is not installed -- nothing to point at.
+    """
+    pyi = _pyinstaller()
+    if pyi is None:
+        return ""
+    return os.path.join(os.path.dirname(pyi.__file__), "bootloader",
                         "Windows-64bit-intel", name)
 
 
@@ -296,13 +315,13 @@ def check_bootloader(name: str = WINDOWED_BOOTLOADER) -> tuple:
     """
     import hashlib
 
-    import PyInstaller
+    pyi = _pyinstaller()
     path = bootloader_path(name)
-    if not os.path.exists(path):
+    if pyi is None or not path or not os.path.exists(path):
         return ("unknown-version", "")
     with open(path, "rb") as fh:
         digest = hashlib.sha256(fh.read()).hexdigest()
-    known = STOCK_BOOTLOADERS.get(PyInstaller.__version__)
+    known = STOCK_BOOTLOADERS.get(pyi.__version__)
     if known is None:
         return ("unknown-version", digest)
     return ("stock" if known.get(name) == digest else "custom", digest)
@@ -311,7 +330,11 @@ def check_bootloader(name: str = WINDOWED_BOOTLOADER) -> tuple:
 def report_bootloader() -> str:
     """Print the bootloader's provenance. Never fails a build over it -- the
     stock one produces a working program, just a more suspicious one."""
-    import PyInstaller
+    pyi = _pyinstaller()
+    if pyi is None:
+        print("bootloader: PyInstaller is not installed -- nothing to check")
+        return "unknown-version"
+    version = pyi.__version__
     status, digest = check_bootloader()
     short = digest[:16] or "?"
     if status == "custom":
@@ -319,12 +342,11 @@ def report_bootloader() -> str:
     elif status == "stock":
         print("bootloader: %s (STOCK for PyInstaller %s -- shared byte for "
               "byte with every PyInstaller app there is. Rebuild it: see "
-              "the build section of CLAUDE.md)"
-              % (short, PyInstaller.__version__))
+              "the build section of CLAUDE.md)" % (short, version))
     else:
         print("bootloader: %s (PyInstaller %s is not in STOCK_BOOTLOADERS -- "
               "cannot tell stock from custom; add its hashes to build.py)"
-              % (short, PyInstaller.__version__))
+              % (short, version))
     return status
 
 
