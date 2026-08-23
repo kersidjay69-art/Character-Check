@@ -1,722 +1,765 @@
-# Character Check — карта проекта
+# Character Check — project map
 
-Десктопное приложение: копируешь список ников из локала EVE — оно говорит,
-кто из них светил цино. Без сервера, без базы всех килмейлов.
+A desktop app: you paste a list of names from EVE's local chat and it tells you
+which of them have lit a cyno. No server, no database of every killmail.
 
-## Запуск
+## Running it
 
 ```bash
-python main.py                               # приложение в трее (с консолью)
-start.cmd                                    # то же без консоли -- обычный запуск
-python -m core.console                       # то же без Qt, вывод в консоль
-python -m core.console --once FILE.txt       # разовая проверка текста из файла
+python main.py                               # tray app, with a console
+start.cmd                                    # the same without one -- normal start
+python -m core.console                       # the same without Qt, output in the terminal
+python -m core.console --once FILE.txt       # one-shot check of a file
 python -m core.console --once F --show-clean --no-cache -v
-python -m core.console --once F --potential  # фильтры: см. «Что ищем»
+python -m core.console --once F --potential  # filters: see "What is searched for"
 python -m core.console --once F --no-industrial --all-cyno
-python sde/build_cyno_sets.py                # пересобрать наборы цино из SDE
-python -m unittest discover -s tests         # 287 тестов, все без сети
-python build.py --dest "C:/куда/положить"    # собрать -> dist/CharacterCheck/
-python build.py --onefile                    # одним файлом вместо папки
+python sde/build_cyno_sets.py                # rebuild the cyno sets from the SDE
+python -m unittest discover -s tests         # 287 tests, none touching the network
+python build.py --dest "C:/somewhere"        # build -> dist/CharacterCheck/
+python build.py --onefile                    # one file instead of a folder
 ```
 
-Настройки, иконки и `app.log` — в `%APPDATA%\CharacterCheck\`
-(`config.data_dir`). **Кэш живёт отдельно, рядом с приложением**:
-`<папка exe>\cache\cache.db`, из исходников — `<корень проекта>\cache\`
-(`config.cache_dir`). Переносная копия так везёт свои ответы с собой; кэш —
-единственное, что дорого пересобирать. Если каталог недоступен на запись (exe
-в Program Files) — тихий откат в `%APPDATA%`, иначе портативная копия просто не
-запустится. `CC_DATA_DIR` перекрывает и то и другое — так гоняются тесты.
+Settings, icons and `app.log` live in `%APPDATA%\CharacterCheck\`
+(`config.data_dir`). **The cache lives separately, beside the application**:
+`<exe folder>\cache\cache.db`, or `<project root>\cache\` when run from source
+(`config.cache_dir`). A portable copy therefore carries its answers with it;
+the cache is the only thing that is expensive to rebuild. If that folder is not
+writable (an exe dropped into Program Files) it falls back to `%APPDATA%`
+silently, because otherwise a portable copy simply would not start.
+`CC_DATA_DIR` overrides both — that is what the tests run on.
 
-При первом запуске на новом месте пилоты с модулем переносятся из старого
-`%APPDATA%\CharacterCheck\cache.db` (замерено: 78 из 696). Старый файл
-остаётся на месте: это данные пользователя, и удалять их — услуга, о которой
-не просили.
+On first run in a new location, pilots with a module are carried over from the
+old `%APPDATA%\CharacterCheck\cache.db` (measured: 78 of 696). The old file is
+left where it is: it is the user's data, and deleting it would be a favour
+nobody asked for.
 
-## Сборка exe
+## Building the exe
 
-`build.py` — PyInstaller, `--onedir --windowed --noupx`. Нужен
-`pip install pyinstaller`; в `requirements.txt` его нет намеренно — это
-инструмент сборки, а не зависимость приложения.
+`build.py` — PyInstaller, `--onedir --windowed --noupx`. Needs
+`pip install pyinstaller`; it is deliberately absent from `requirements.txt` —
+it is a build tool, not a dependency of the program.
 
-| | размер | сборка | холодный старт |
+| | size | build | cold start |
 |---|---:|---:|---:|
-| `--onedir` (по умолчанию) | 133 МБ, 203 файла | 46 с | **0.71 с** |
-| `--onefile` | 54.8 МБ одним файлом | 53 с | 1.6 с |
+| `--onedir` (default) | 133 MB, 203 files | 46 s | **0.71 s** |
+| `--onefile` | 54.8 MB, one file | 53 s | 1.6 s |
 
-**Папка по умолчанию.** `--onefile` — это заглушка, которая распаковывает
-себя в `%TEMP%` и запускает то, что только что туда записала; в onedir этапа
-распаковки нет вообще. Те самые 1.6 с холодного старта **и были** распаковкой.
+**A folder by default.** `--onefile` is a stub that unpacks itself into
+`%TEMP%` and runs what it just wrote; onedir has no extraction stage at all.
+Those 1.6 s of cold start **were** the unpacking.
 
-Цена — 133 МБ россыпью вместо 55 одним файлом; раздаётся zip'ом (~55 МБ).
-`--onefile` остался флагом: локально одним файлом удобнее.
+The price is 133 MB spread over files instead of 55 MB in one; it ships as a
+zip (~55 MB). `--onefile` remains a flag: one file is handier locally.
 
-⚠️ **На антивирусы переход в onedir не подействовал, и это надо знать до того,
-как предлагать его снова.** Замерено: onefile — 1 движок (Bkav Pro), onedir —
-**2** (Bkav Pro + Zillya `Backdoor.XWorm.Win32`). Отчёты не вполне сравнимы
-(разные файлы), но счётчик не упал. Аргумент «самораспаковка похожа на
-дроппер» звучит убедительно и оказался не тем, на что смотрят движки. Что
-onedir реально дал — 0.71 с вместо 1.6 с, и это одно оправдывает умолчание.
+⚠️ **Moving to onedir did nothing for antivirus detections, and that needs to
+be known before proposing it again.** Measured: onefile — 1 engine (Bkav Pro),
+onedir — **2** (Bkav Pro + Zillya `Backdoor.XWorm.Win32`). The reports are not
+strictly comparable (different files), but the counter did not fall. The
+argument "self-extraction looks like a dropper" sounds convincing and turned
+out not to be what engines look at. What onedir really bought is 0.71 s instead
+of 1.6 s, and that alone justifies the default.
 
-Четыре вещи, без которых сборка тихо ломается:
+Four things the build breaks quietly without:
 
-**`sde/cyno_sets.json` обязан попасть в бандл** (`--add-data`). Без него
-`cyno_sets.load()` бросает исключение — и это правильно: пустой набор объявил
-бы чистой всю галактику. Путь к артефакту спрашивает `sys._MEIPASS` напрямую
-(`cyno_sets._artifact_path`), а не выводит его из `__file__`: подъём на два
-каталога вверх сегодня попадает туда же, но это деталь того, как PyInstaller
-называет замороженные модули, а не контракт.
+**`sde/cyno_sets.json` must reach the bundle** (`--add-data`). Without it
+`cyno_sets.load()` raises — and that is correct: an empty set would declare the
+whole galaxy clean. The artifact path asks `sys._MEIPASS` directly
+(`cyno_sets._artifact_path`) rather than deriving it from `__file__`: going two
+directories up lands in the same place today, but that is a detail of how
+PyInstaller names frozen modules, not a contract.
 
-**`--windowed` означает, что `sys.stderr` равен `None`.** Обычный
-`logging.basicConfig()` завёл бы `StreamHandler(None)`, и первое же
-предупреждение уронило бы приложение. `main._start_logging` в этом случае
-пишет в `%APPDATA%\CharacterCheck\app.log`. Из исходников — как было, в консоль.
+**`--windowed` means `sys.stderr` is `None`.** A plain `logging.basicConfig()`
+would set up a `StreamHandler(None)` and the first warning would take the app
+down. `main._start_logging` writes to `%APPDATA%\CharacterCheck\app.log` in
+that case. From source it behaves as before, on the console.
 
-**Иконка exe — `assets/icon.png`**, единственный бинарный ассет в
-репозитории. До 2026-08-23 её тоже рисовал код (маяк из `ui.tray._icon`), и
-правило «ничего бинарного в репозитории» держалось целиком; пользователь дал
-готовый логотип, и рисунок кодом не выводится. Всё остальное по-прежнему
-рисуется: иконка в трее, значки в шапке (`ui/glyphs.py`), клин разряда.
+**The exe icon is `assets/icon.png`**, the only binary asset in the repository.
+Until 2026-08-23 it was drawn by code too (the beacon from `ui.tray._icon`) and
+the "nothing binary in the repository" rule held completely; the user supplied
+a finished logo, and artwork cannot be derived from code. Everything else is
+still drawn: the tray icon, the header glyphs (`ui/glyphs.py`), the tier wedge.
 
-⚠️ Если файла нет, сборка **не падает**, а откатывается на нарисованный маяк
-(`build._logo_png` возвращает `None`). Отсутствие картинки не повод не дать
-человеку собрать программу.
+⚠️ If the file is missing the build **does not fail**, it falls back to the
+drawn beacon (`build._logo_png` returns `None`). A missing picture is no reason
+to stop somebody building the program.
 
-Собирается в многоразмерный `.ico` (16…256, PNG-записи), каждый размер
-масштабируется из мастера 512px отдельно. Одного размера мало: Windows берёт
-разные для панели задач, заголовка и «крупных значков» в Проводнике, и один
-уменьшенный битмап мылит минимум в двух из трёх.
+It is assembled into a multi-size `.ico` (16…256, PNG entries), each size
+scaled from the 512px master separately. One size is not enough: Windows picks
+different ones for the taskbar, the title bar and Explorer's large view, and a
+single downscaled bitmap looks soft in at least two of the three.
 
-⚠️ **На 16 и 24 px этот логотип нечитаем** — плотный радар превращается в
-оранжевое пятно, различима только форма круга. С 32 px и выше нормально.
-Замерено глазами на светлом и тёмном фоне. Лечится только другой картинкой
-для малых размеров, а не кодом.
+⚠️ **At 16 and 24 px this logo is unreadable** — the dense radar dial becomes
+an orange blob and only the circle is distinguishable. From 32 px up it is
+fine. Checked by eye on light and dark backgrounds. The only fix is a different
+picture for the small sizes, not code.
 
-⚠️ Исходник от пользователя пришёл **без альфа-канала**: прозрачность в нём
-была нарисована шахматкой прямо в пикселях (типичный экспорт Gemini). Ключевать
-по цвету нельзя — серый шахматки совпадает с серым на корпусе корабля
-(проверено: нашёлся на радиусе 12 px от центра). Поэтому вырезано по геометрии:
-круг с мягким краем, непрозрачно до r=308, прозрачно с r=320 при радиусе
-кропа 327.
+⚠️ The source image arrived **with no alpha channel**: its transparency was a
+checkerboard painted into the pixels (a typical Gemini export). Colour keying
+is impossible — the checkerboard grey matches grey on the ship's hull (found at
+a radius of 12 px from the centre). So it is cut geometrically: a circle with a
+soft edge, opaque to r=308, transparent from r=320, at a crop radius of 327.
 
-**Версионный ресурс генерируется** (`build.make_version_file`) из
-`core.config` — руками в репозитории не лежит. До 2026-08-20 его не было
-вовсе, и вкладка «Подробно» в Проводнике была пустой целиком: безымянный
-неподписанный бинарь — сам по себе сигнал для эвристики, а вкладка «Подробно» —
-первое, куда смотрит встревоженный пользователь.
+**The version resource is generated** (`build.make_version_file`) from
+`core.config` — it is not a file kept by hand. Before 2026-08-20 there was none
+at all and Explorer's Details tab was entirely blank: a nameless unsigned
+binary is a heuristic signal in itself, and the Details tab is the first place
+a worried user looks.
 
-⚠️ **Автора в exe нет и быть не должно** (инвариант 7): `CompanyName` — это
-`PROJECT_URL`, единственная публичная личность проекта, а `LegalCopyright`
-называет лицензию, а не человека. Контакты автора живут в `ui/about.py`, а exe
-раздаётся незнакомым людям. Проверяется `tests/test_distribution.py`.
+⚠️ **The author is not in the exe and must not be** (invariant 7):
+`CompanyName` is `PROJECT_URL`, the project's one public identity, and
+`LegalCopyright` names the licence rather than a person. The author's contacts
+live in `ui/about.py`, and the exe is handed to strangers. Enforced by
+`tests/test_distribution.py`.
 
-⚠️ `040904B0` в `StringTable` и `[1033, 1200]` в `Translation` — одна и та же
-локаль, записанная двумя способами. Разойдутся — Проводник покажет пустую
-вкладку, молча.
+⚠️ `040904B0` in the `StringTable` and `[1033, 1200]` in `Translation` are the
+same locale written two ways. If they diverge, Explorer shows an empty Details
+tab, silently.
 
-⚠️ `config.VERSION` — человеческая строка (`"0.1"`), а ресурсу нужен кортеж из
-четырёх чисел. `_version_tuple` берёт **ведущие** цифры каждого куска, а не все
-подряд: `"1.0-rc1"` при выкидывании нецифр склеивался в `01` и уезжал в 1.1.
-На мусоре не падает — сборка не должна быть тем, что обнаруживает опечатку в
-версии.
+⚠️ `config.VERSION` is a human string (`"0.1"`) and the resource wants a tuple
+of four numbers. `_version_tuple` takes the **leading** digits of each part
+rather than every digit: dropping non-digits spliced `"1.0-rc1"` into `01` and
+shipped it as 1.1. It does not raise on junk — a build must not be the thing
+that discovers a typo in the version.
 
-**Подпись кода.** Её нет. Бесплатный вариант ровно один — SignPath Foundation
-для открытых проектов, и он требует публичного репозитория и сборки в CI,
-которых пока нет (открытый вопрос №1 в `docs/STATE.md`). Самоподписанный
-сертификат не годится: Windows всё равно скажет «Неизвестный издатель», а
-SmartScreen и антивирусы недоверенную подпись игнорируют — стоит столько же,
-сколько её отсутствие, но выглядит как решённый вопрос.
+**Code signing.** There is none. There is exactly one free option — SignPath
+Foundation for open-source projects — and it requires a public repository and a
+CI build, both of which now exist; applying is the remaining step. A
+self-signed certificate is not acceptable: Windows still says "unknown
+publisher", and SmartScreen and antivirus engines ignore an untrusted
+signature — it costs as much as having none while looking like a solved
+problem.
 
-## Бутлоадер: то, что действительно узнают антивирусы
+## The bootloader: what antivirus engines actually recognise
 
-Wheel PyInstaller с PyPI содержит **готовые** бинарники бутлоадера
-(`PyInstaller/bootloader/Windows-64bit-intel/` — `run.exe`, `runw.exe` и их
-отладочные близнецы; исходников там нет). Значит код, который стартует любое
-замороженное приложение, у всех в мире байт-в-байт один и тот же — включая
-малвар, который его авторы пакуют тем же PyInstaller. Сигнатуры generic-движков
-стоят именно на этих байтах.
+The PyInstaller wheel from PyPI ships **prebuilt** bootloader binaries
+(`PyInstaller/bootloader/Windows-64bit-intel/` — `run.exe`, `runw.exe` and
+their debug twins; no sources). So the code that starts every frozen
+application is byte-identical the world over — including the malware whose
+authors pack it with the same PyInstaller. Generic engines' signatures sit on
+those bytes.
 
-Измерено на нашей сборке 2026-08-20:
-
-```
-runw.exe из wheel 6.20.0            279 552 байт
-наш CharacterCheck.exe            5 447 990 байт
-общий префикс                           270 байт   (дальше наши иконка и версия)
-срез 4 КБ из середины runw.exe есть в нашем exe:  ДА
-```
-
-Отсюда и вывод про onedir: ни формат раздачи, ни версионный ресурс, ни
-`--noupx` этих байтов не касаются в принципе.
-
-### ⚠️ «Просто пересобери бутлоадер» НЕ РАБОТАЕТ — проверено
-
-Это стандартный совет в интернете и в трекере самого PyInstaller. Мы его
-выполнили целиком (поставили MSVC Build Tools, скачали sdist 6.20.0, собрали
-`waf distclean all --target-arch=64bit`) и **измерили результат**:
+Measured on our build, 2026-08-20:
 
 ```
-штатный runw.exe    279 552 байт
-пересобранный       279 552 байт   — тот же размер
-различий                 64 байта  (0.02%)
-самый длинный совпадающий кусок    247 298 байт
-срезы 4 КБ штатного внутри нового:  5 из 5
+runw.exe from the 6.20.0 wheel     279 552 bytes
+our CharacterCheck.exe           5 447 990 bytes
+common prefix                          270 bytes   (then our icon and version)
+4 KB slices of runw.exe inside our exe:  YES
 ```
 
-Все 64 байта — метаданные, ни одного байта кода:
+Hence the conclusion about onedir: neither the distribution format, nor the
+version resource, nor `--noupx` touch those bytes at all.
+
+### ⚠️ "Just rebuild the bootloader" DOES NOT WORK — verified
+
+That is the standard advice, on the internet and in PyInstaller's own tracker.
+We followed it completely (installed MSVC Build Tools, downloaded the 6.20.0
+sdist, ran `waf distclean all --target-arch=64bit`) and **measured the
+result**:
 
 ```
-0x000080-0x0000ef   Rich header (версии компилятора)
+stock runw.exe        279 552 bytes
+rebuilt               279 552 bytes   -- the same size
+differing bytes            64        (0.02%)
+longest identical run  247 298 bytes
+4 KB slices of the stock inside the new one:  5 of 5
+```
+
+All 64 bytes are metadata, not one byte of code:
+
+```
+0x000080-0x0000ef   Rich header (compiler versions)
 0x000110-0x000113   PE TimeDateStamp
-0x000160-0x000161   контрольная сумма
-0x03c764            метка времени debug-директории
+0x000160-0x000161   checksum
+0x03c764            debug directory timestamp
 ```
 
-Причина простая: PyInstaller собирает бутлоадер воспроизводимо, и тот же
-MSVC с теми же флагами выдаёт **байт-в-байт тот же машинный код**. Любая
-сигнатура по коду совпадёт как ни в чём не бывало.
+The reason is simple: PyInstaller builds the bootloader reproducibly, and the
+same MSVC with the same flags emits **byte-identical machine code**. Any
+signature keyed on code matches as if nothing had happened.
 
-Чтобы код действительно изменился, надо менять кодогенерацию. Единственный
-флаг, который это дал в пробе, — `/GS-` (размер уехал на 2048 байт, 0 из 5
-срезов). **Отклонено:** это отключение защиты стека, то есть ослабление
-бинаря ради непохожести на сигнатуру. `/O1` не помог — `wscript` ставит `/O2`
-после наших `CFLAGS`, и последний флаг у MSVC побеждает.
+To change the code you have to change code generation. The only flag that did
+so in testing was `/GS-` (size moved by 2048 bytes, 0 of 5 slices).
+**Rejected:** that disables stack protection, i.e. weakens the binary for the
+sake of not resembling a signature. `/O1` did not help — `wscript` appends
+`/O2` after our `CFLAGS`, and with MSVC the last flag wins.
 
-Итог: путь не тупиковый, но и не бесплатный, а главное — **нет доказательств,
-что детект вообще привязан к байтам бутлоадера.** Он может быть привязан к
-структуре архива PyInstaller (`MEI`-кука), к вложенному `python3xx.dll` или
-просто к «PE, внутри которого Python». Прежде чем тратить на это время снова,
-нужен способ проверить гипотезу, а не ещё один правдоподобный довод.
+Conclusion: the road is not a dead end, but it is not free either, and above
+all **there is no evidence the detection is keyed on bootloader bytes at all.**
+It may be keyed on the PyInstaller archive structure (the `MEI` cookie), on the
+embedded `python3xx.dll`, or simply on "a PE with Python inside". Before
+spending time on this again, get a way to test the hypothesis rather than
+another plausible argument.
 
-Исходники и тулчейн остались на месте (`build/pyi-src/`), установленный
-PyInstaller — **штатный, из wheel**; `pip install .` не выполнялся.
+The toolchain and sources were removed afterwards; the installed PyInstaller is
+the **stock wheel** — `pip install .` was never run.
 
-**Сторож** — `build.report_bootloader()` печатает sha256 того бутлоадера, что
-пойдёт в сборку, и говорит `custom` или `STOCK`. Без него первый же
-`pip install --upgrade pyinstaller` молча вернул бы штатный, и узнали бы об
-этом через полгода с очередного VirusTotal.
+**The guard** — `build.report_bootloader()` prints the sha256 of the bootloader
+that will go into the build and says `custom` or `STOCK`. Without it the first
+`pip install --upgrade pyinstaller` would put the stock one back silently, and
+we would find out six months later from another VirusTotal report.
 
-⚠️ `STOCK_BOOTLOADERS` — словарь **по версиям**, а не один хеш. После апгрейда
-ключа не будет, и проверка обязана сказать «версия незнакома», а не промолчать:
-проверка, которая проходит на всём невиданном, — это декорация. Держится
-тестом `tests/test_distribution.py::TestBootloaderGuard`.
+⚠️ `STOCK_BOOTLOADERS` is a dictionary **by version**, not a single hash. After
+an upgrade the key is absent and the check has to say "I do not know this
+version" rather than stay quiet: a check that passes on everything it has not
+seen is decoration. Held by
+`tests/test_distribution.py::TestBootloaderGuard`.
 
-## Устройство
+⚠️ PyInstaller may be absent entirely — it is a build tool and is not in
+`requirements.txt`. `build._pyinstaller()` returning `None` is a normal answer,
+and the tests that need it skip. CI caught this on its first run.
+
+## Layout
 
 ```
-core/            Qt-free ядро (инвариант 1)
-  guard.py       ПРЕДОХРАНИТЕЛЬ: игровой текст или мусор. Чистые функции, ноль I/O
-  analyze.py     чистая логика улик A/B/C по килмейлу
-  cyno_sets.py   загрузка sde/cyno_sets.json
-  chatlog.py     свои персонажи из заголовка Listener:
+core/            Qt-free core (invariant 1)
+  guard.py       THE GUARD: game text or junk. Pure functions, zero I/O
+  analyze.py     pure A/B/C evidence logic for one killmail
+  cyno_sets.py   loads sde/cyno_sets.json
+  chatlog.py     your own characters, from the Listener: header
   clipboard.py   ctypes, GetClipboardSequenceNumber
-  esi.py         POST /universe/ids/ — и финальный арбитр предохранителя
-  icons.py       иконки типов с images.evetech.net, дисковый кэш + промахи
-  i18n.py        EN/RU, ключи вместо строк; EN по умолчанию
-  zkb.py         zKillboard REST, пагинация
-  ratelimit.py   токен-бакет 8 req/s
-  http.py        общая keep-alive сессия
-  cache.py       SQLite: вердикты и улики
-  scan.py        оркестратор
-  console.py     запуск без Qt
-assets/          icon.png — единственный бинарный ассет (логотип exe)
-sde/             build_cyno_sets.py -> cyno_sets.json (артефакт, коммитится)
-ui/              Qt живёт только здесь
-  styles.py      палитра и QSS — те же, что в Jump planer
-  tray.py        иконка в трее, поток сканирования, уведомления
-  results_window.py  дерево результатов, раскрытие в улики, делегат иконок
-  icon_cache.py  PNG -> QPixmap, докачка вне GUI-потока, сигнал icon_ready
-  glyphs.py      шеврон, булавка, воронка — рисуются, а не лежат файлами
-  about.py       контакты автора — единственное место (инвариант 7)
-tests/           фикстуры — настоящие логи и настоящие вставки локала
+  esi.py         POST /universe/ids/ -- and the guard's final arbiter
+  icons.py       type icons from images.evetech.net, disk cache + misses
+  i18n.py        EN/RU, keys rather than strings; EN by default
+  zkb.py         zKillboard REST, pagination
+  ratelimit.py   token bucket, 8 req/s
+  http.py        one shared keep-alive session
+  cache.py       SQLite: verdicts and evidence
+  scan.py        the orchestrator
+  console.py     running without Qt
+assets/          icon.png -- the only binary asset (the exe logo)
+sde/             build_cyno_sets.py -> cyno_sets.json (artifact, committed)
+ui/              Qt lives only here
+  styles.py      palette and QSS -- the same as Jump Planner's
+  tray.py        tray icon, scan thread, notifications
+  results_window.py  result tree, expansion into evidence, icon delegate
+  icon_cache.py  PNG -> QPixmap, fetching off the GUI thread, icon_ready
+  glyphs.py      chevron, pin, funnel -- drawn, not shipped as files
+  about.py       the author's contacts -- the only place (invariant 7)
+tests/           fixtures are real logs and real local pastes
 ```
 
-Поток: `guard → ESI → cache → zKillboard → analyze → вердикт`.
+Flow: `guard → ESI → cache → zKillboard → analyze → verdict`.
 
-## Улики
+## Evidence
 
-**Через всё это проходит один фильтр: `sets.can_fit(hull, module)`.** Модуль
-засчитывается, только если корпус может нести именно его по текущему SDE. Ни
-`fitted`, ни `cargo` мимо него не проходят.
+**One filter runs through all of it: `sets.can_fit(hull, module)`.** A module
+counts only if the hull can carry that exact one under the current SDE. Neither
+`fitted` nor `cargo` gets past it.
 
-| Код | Что | Как определяется |
+| Code | What | How it is decided |
 |---|---|---|
-| A `fitted` | умирал с цино в хай-слоте | `can_fit` И `item_type_id ∈ modules` И `27 ≤ flag ≤ 34` И `depth == 0` |
-| A' `cargo` | цино был на борту, но не в хай-слоте | `can_fit`, тот же type_id, любой другой флаг/глубина. Уликой считается **только на боевом цино-хулле** |
-| B `hull_lost` | умирал на цино-способном хулле | `victim.ship_type_id ∈ hulls` И хулл **не** индустриальный |
-| C `hull_flown` | участвовал в килле на таком хулле | `attackers[].ship_type_id` при своём `character_id`, тот же фильтр |
+| A `fitted` | died with a cyno in a high slot | `can_fit` AND `item_type_id ∈ modules` AND `27 ≤ flag ≤ 34` AND `depth == 0` |
+| A' `cargo` | a cyno was aboard but not in a high slot | `can_fit`, same type_id, any other flag/depth. Counts as evidence **only on a combat cyno hull** |
+| B `hull_lost` | died in a cyno-capable hull | `victim.ship_type_id ∈ hulls` AND the hull is **not** industrial |
+| C `hull_flown` | took part in a kill in such a hull | `attackers[].ship_type_id` for his own `character_id`, same filter |
 
-Голый индустриальный хулл (Venture, Badger, Noctis) уликой не пишется вообще —
-не «уровень none», а строки в базе нет: она давала только шум в раскрытом
-списке (`analyze._hull_is_evidence`). Модуль на том же корпусе не трогается.
+A bare industrial hull (Venture, Badger, Noctis) is not recorded as evidence at
+all — not "level none", there is no row in the database: it only produced noise
+in the expanded list (`analyze._hull_is_evidence`). A module on the same hull is
+untouched.
 
-## Что ищем — три фильтра
+## What is searched for — three filters
 
-Фильтры решают не «что показать», а **что вообще извлекать**. Улика, которую
-выключили, не создаётся, не хранится и не участвует в вердикте. Это не
-педантизм: именно поэтому запрос можно **не делать**, а не сделать и выбросить
-ответ. Живут в `config.DEFAULTS`, читаются через `analyze.Filters.from_config`,
-правятся из окна (воронка в шапке) и из консоли.
+The filters decide not "what to show" but **what to extract in the first
+place**. Evidence that is switched off is never created, never stored and never
+reaches the verdict. That is not pedantry: it is exactly why a request can be
+**not made** rather than made and thrown away. They live in `config.DEFAULTS`,
+are read through `analyze.Filters.from_config`, and are edited from the window
+(the funnel in the header) and from the console.
 
-| Ключ | По умолчанию | Что выключает |
+| Key | Default | What it switches off |
 |---|---|---|
-| `find_potential` | **выкл** | голые цино-хуллы: уровни `hull` и `seen` |
-| `find_industrial` | вкл | индустриальный цино-модуль 52694 |
-| `stop_at_first` | вкл | досрочный выход по первому боевому цино |
+| `find_potential` | **off** | bare cyno hulls: the `hull` and `seen` levels |
+| `find_industrial` | on | the industrial cyno module 52694 |
+| `stop_at_first` | on | early exit on the first combat cyno |
 
-⚠️ **Главное следствие: при выключенном `find_potential` проход по киллам не
-делается вообще.** Модульные улики (`fitted`, `cargo`) читаются только из
-`victim.items`, то есть только с собственных лоссов. Фид `/kills/` отдаёт
-килмейлы, где пилот — атакующий, поэтому оттуда физически не может прийти
-ничего, кроме `hull_flown`. Значит второй запрос не может повлиять ни на одну
-строку на экране — и `scan.feeds_for` его не заказывает. **1 запрос на пилота
-вместо 2.**
+⚠️ **The main consequence: with `find_potential` off the kills pass is not made
+at all.** Module evidence (`fitted`, `cargo`) is read only from `victim.items`,
+i.e. only from the pilot's own losses. The `/kills/` feed returns killmails
+where the pilot is an attacker, so nothing but `hull_flown` can physically come
+out of it. That means the second request cannot affect a single row on screen —
+and `scan.feeds_for` does not order it. **1 request per pilot instead of 2.**
 
-Замерено живьём на 60 никах из хаба, оба прогона с пустого кэша:
+Measured live on 60 hub names, both runs from an empty cache:
 
-| | время | вердикты |
+| | time | verdicts |
 |---|---:|---|
-| по умолчанию | **8.6 с** | `cyno` 4, `indy` 1, чистых 55 |
-| `--potential` | 15.3 с | `cyno` 4, `indy` 1, `hull` 12, чистых 43 |
+| default | **8.6 s** | `cyno` 4, `indy` 1, 55 clean |
+| `--potential` | 15.3 s | `cyno` 4, `indy` 1, `hull` 12, 43 clean |
 
-Красные и синие **совпадают поимённо** — сужение не стоит ни одной улики про
-модуль, оно убирает только «может быть». На 1400 никах это ~175 с против
-~350 с. Ни одна другая мера столько не даёт: досрочный выход по вердикту
-стоил бы ~3%.
+The reds and blues **match by name** — narrowing costs not one piece of module
+evidence, it removes only the maybes. On 1400 names that is ~175 s against
+~350 s. No other measure comes close: an early exit on the verdict would be
+worth about 3%.
 
-`find_industrial` выкл — пилот, у которого не было ничего кроме
-индустриального цино, становится `none` и **пропадает из списка**, а не
-опускается вниз.
+`find_industrial` off — a pilot who had nothing but an industrial cyno becomes
+`none` and **disappears from the list** rather than sinking to the bottom.
 
-`stop_at_first` применяется только при `len(pilots) > STOP_AT_FIRST_MIN` (10).
-Один пилот считается доли секунды, экономить там нечего, а полный ответ на
-намеренно набранный ник дороже. Останавливаемся на уровне `cyno`, а не на
-`fitted`: индустриальный цино — не то, что ищут, и выход по нему оставил бы
-красного пилота помеченным синим (`scan._proven`).
+`stop_at_first` applies only when `len(pilots) > STOP_AT_FIRST_MIN` (10). One
+pilot takes a fraction of a second, so there is nothing to save, and a complete
+answer to a deliberately typed name is worth more. It stops at the `cyno`
+level, not at `fitted`: an industrial cyno is not what is being looked for, and
+exiting on one would leave a red pilot reported as blue (`scan._proven`).
 
-⚠️ **Глубина везде одна страница, включая одиночный ник** (`list_pages`).
-`single_full_history` отменён: 25 с → 0.25 с. Цена честная и её надо помнить —
-продукт перестал отвечать на «когда-либо?» и отвечает на «в последних 200
-лоссах». Ровно за молчаливый ложноотрицательный ответ на «когда-либо» проект в
-своё время отверг `/asearch/` (инвариант 5). Теперь тот же размен сделан
-осознанно и своими руками, а не унаследован от чужого крона.
+⚠️ **Depth is one page everywhere, a single name included** (`list_pages`).
+`single_full_history` was retired: 25 s → 0.25 s. The price is honest and must
+be remembered — the product stopped answering "ever?" and answers "in the last
+200 losses". A silent false negative on "ever" is precisely what made the
+project reject `/asearch/` (invariant 5). The same trade is now made
+deliberately and by our own hand rather than inherited from somebody else's
+cron job.
 
-## Приоритет вердикта
+## Verdict priority
 
-Продукт отвечает на вопрос «цино — и если да, то какое». Приоритет задаётся
-**типом модуля**, но **хулл решает, считается ли модуль вообще**.
+The product answers "cyno — and if so, which". Priority is set by the **module
+type**, but the **hull decides whether a module counts at all**.
 
-| Уровень | Значение | Цвет ника | Доля в хабе (1402 пилота) |
+| Level | Meaning | Name colour | Share of a hub (1402 pilots) |
 |---|---|---|---|
-| `cyno` | ковертный или обычный цино (21096 / 28646) | красный | 6.5% |
-| `hull` | погиб или убивал на боевом цино-хулле, модуля не было | жёлтый | 20.9% |
-| `indy` | индустриальный цино-**модуль** (52694) | синий | 1.4% |
-| `seen` | только «тихий» хулл: Covert Ops или T3 | серый | 6.4% |
-| `none` | ничего | — | 64.8% |
+| `cyno` | covert or regular cyno (21096 / 28646) | red | 6.5% |
+| `hull` | died or killed in a combat cyno hull, no module | yellow | 20.9% |
+| `indy` | an industrial cyno **module** (52694) | blue | 1.4% |
+| `seen` | only a "quiet" hull: Covert Ops or T3 | grey | 6.4% |
+| `none` | nothing | — | 64.8% |
 
-Доли — при **всех** включённых фильтрах. По умолчанию `hull` и `seen` не могут
-возникнуть в принципе, и в списке остаются только красные и синие: 7.9%.
+Those shares are with **all** filters on. By default `hull` and `seen` cannot
+arise at all, and only reds and blues remain in the list: 7.9%.
 
-Полная таблица правил живёт в докстринге `analyze.Finding.level`. Три места,
-где она неочевидна:
+The full rule table lives in the `analyze.Finding.level` docstring. Three
+places where it is not obvious:
 
-**Цино в трюме считается за установленный только на боевом цино-хулле.**
-Пилот мог снять его один андок назад — но это верно для рекона, а не для
-фрейтера, который везёт ящик цино на продажу. Один и тот же модуль, один и
-тот же `kind`, разница целиком в хулле.
+**A cyno in the hold counts as fitted only on a combat cyno hull.** The pilot
+may have unfitted it one undock ago — but that is true of a recon, not of a
+freighter hauling a crate of cynos to market. Same module, same `kind`; the
+difference is entirely the hull.
 
-**Covert Ops и T3 без модуля — «замечен», а не предупреждение.**
-Buzzard/Helios/Anathema/Cheetah — фрегаты исследователей, Legion/Loki/Tengu/
-Proteus — универсальный крейсер на все случаи. Цино в них встаёт, но летают на
-них поголовно, и жёлтый на таком основании — ложная тревога. Такой пилот
-остаётся в списке, серым и в самом низу: он не угроза, но и молча выкинуть его
-нельзя — тогда не видно, что его вообще проверяли. Замерено на 1712 пилотах:
-**104 съехали `hull → seen`**, ещё 4 `hull → indy` (у них был индустриальный
-модуль, который раньше перекрывался тихим хуллом). Список тихих групп —
-`analyze._QUIET_HULL_GROUPS`, ровно две.
+**Covert Ops and T3 with no module are "seen", not a warning.**
+Buzzard/Helios/Anathema/Cheetah are explorers' frigates and
+Legion/Loki/Tengu/Proteus are the general-purpose cruiser. A cyno fits in them,
+but everybody flies them, and yellow on that basis is a false alarm. Such a
+pilot stays in the list, greyed and at the very bottom: he is not a threat, but
+dropping him silently would hide the fact that he was checked at all. Measured
+on 1712 pilots: **104 moved `hull → seen`**, another 4 `hull → indy` (they had
+an industrial module that a quiet hull used to outrank). The list of quiet
+groups is `analyze._QUIET_HULL_GROUPS`, exactly two.
 
-**Индустриальный хулл без модуля — не улика вообще.** Потерянный Venture или
-Badger, в котором ничего не было, — это майнер. В прогоне по хабу таких было
-842 из 1547 пометок, то есть больше половины списка была шумом. `indy` теперь
-означает ровно «индустриальный цино-модуль», а не «индустриальный корабль»,
-и его доля упала с 17.6% до 0.9%.
+**An industrial hull with no module is not evidence at all.** A lost Venture or
+Badger with nothing in it is a miner. In the hub run there were 842 of those
+out of 1547 flags, i.e. more than half the list was noise. `indy` now means
+exactly "an industrial cyno module", not "an industrial ship", and its share
+fell from 17.6% to 0.9%.
 
-Уровень — это мнение об уликах, а сами улики — факты. Поэтому при смене правил
-уровни **пересчитываются** из `findings` (миграции `levels_with_yellow`,
-`levels_by_module`, `levels_cargo_and_indy_hulls` в `cache.py`), а не
-угадываются. Миграция обязана трогать и пилотов **без** улик, иначе они
-навсегда остаются с именем уровня из старой схемы и пропадают из всех
-подсчётов.
+A level is an opinion about the evidence, and the evidence is fact. So when the
+rules change the levels are **recomputed** from `findings` (migrations
+`levels_with_yellow`, `levels_by_module`, `levels_cargo_and_indy_hulls` in
+`cache.py`) rather than guessed. A migration must touch pilots **without**
+evidence too, or they keep a level name from the old scheme forever and vanish
+from every count.
 
-## Сводка иконок хранится, а не выводится
+## The icon summary is stored, not derived
 
-`pilots.modules_csv` и `pilots.ships_csv` — это то, что рисуется в строке.
-Выводить их из `findings` при чтении **нельзя**: у таблицы
-`PRIMARY KEY (character_id, killmail_id, kind)`, поэтому смерть с двумя
-разными цино на борту сохраняет одну строку из двух, а чтение вдобавок
-ограничено. `findings` остаётся источником для раскрытого списка улик, и
-только для него.
+`pilots.modules_csv` and `pilots.ships_csv` are what gets drawn in the row.
+Deriving them from `findings` on read is **not allowed**: that table has
+`PRIMARY KEY (character_id, killmail_id, kind)`, so a death with two different
+cynos aboard stores one row out of two, and reads are bounded besides.
+`findings` remains the source for the expanded evidence list, and for that
+only.
 
-Какие корабли попадают в строку: боевые цино-хуллы всегда, индустриальные —
-только если на них цино стоял **в фите**. Иначе иконку получал бы каждый
-потерянный Venture. Тихие хуллы (Covert Ops, T3) попадают, но стоят **после
-индустриальных**: индустриальный в строке означает цино в фите, то есть улику,
-а Legion не означает ничего.
+Which ships get into the row: combat cyno hulls always; industrial ones only if
+a cyno was actually **fitted** on them. Otherwise every lost Venture would earn
+an icon. Quiet hulls (Covert Ops, T3) get in but sit **after** the industrial
+ones: an industrial in the row means a fitted cyno, i.e. evidence, while a
+Legion means nothing.
 
-⚠️ **Строка иконок и раскрытый список обязаны говорить одно и то же.** Один раз
-они разошлись, и это выглядело как враньё: у пилота были нарисованы Marshal и
-Redeemer, а в раскрытии — полсотни одинаковых Legion и больше ничего. Иконки
-были правы. Список читался `ORDER BY km_time DESC LIMIT 50`, а пилот за четыре
-дня налетал 52 килмейла на одном хулле — и все пятьдесят мест ушли им. Увеличить
-лимит нельзя, потому что проблема не в размере, а в однообразии.
+⚠️ **The icon row and the expanded list must say the same thing.** They diverged
+once and it looked like lying: a pilot's row drew a Marshal and a Redeemer while
+his expansion showed fifty identical Legions and nothing else. The icons were
+right. The list was read with `ORDER BY km_time DESC LIMIT 50`, and the pilot
+had flown 52 killmails on one hull in four days — all fifty slots went to them.
+Raising the limit does not help, because the problem is sameness, not size.
 
-Поэтому улики **группируются по `(kind, ship_type_id, module_type_id)`**:
-одна строка на «что это было», дата самой свежей, количество через `×N`
-(`analyze.group_findings`, а в SQL — `GROUP BY` в `cache.get_findings`). Теперь
-каждой иконке гарантированно соответствует строка.
+So evidence is **grouped by `(kind, ship_type_id, module_type_id)`**: one row
+per "what this was", the date of the most recent, the count as `×N`
+(`analyze.group_findings`, and in SQL the `GROUP BY` in `cache.get_findings`).
+Every icon now has a guaranteed corresponding row.
 
-⚠️ В этом запросе `killmail_id` и `system_id` — голые колонки рядом с
-`MAX(km_time)`. SQLite обещает, что они придут из строки, которую выбрал `MAX`;
-на этом обещании держится то, что двойной клик открывает самый свежий килмейл
-группы, а не случайный. Переписать это в обычную агрегацию нельзя.
+⚠️ In that query `killmail_id` and `system_id` are bare columns beside
+`MAX(km_time)`. SQLite guarantees they come from the row `MAX` picked; that
+guarantee is what makes a double-click open the newest killmail of the group
+rather than an arbitrary one. It must not be rewritten as a plain aggregate.
 
-## ИНВАРИАНТЫ — не ломать
+## INVARIANTS — do not break
 
-**1. `core/` не импортирует Qt.** Проверяется `tests/test_invariants.py`. Jump
-planer уже заплатил за это: как только GUI протекает в логику, ничего нельзя ни
-протестировать, ни запустить без дисплея.
+**1. `core/` does not import Qt.** Enforced by `tests/test_invariants.py`. Jump
+Planner already paid for this: the moment the GUI leaks into the logic, nothing
+can be tested or run without a display.
 
-**2. Никакой эмуляции ввода.** Чтение логов, буфера и экрана CCP терпит (RIFT
-есть в их собственном списке инструментов). Отправка нажатий — это уже игра за
-игрока, EULA 6.A.3. Копирование остаётся действием человека. Запрещённые вызовы
-перечислены в тесте. Также запрещены: чтение памяти, скрейпинг кэша, снифф
-пакетов (EULA 9.C).
+**2. No input emulation.** CCP tolerates reading logs, the clipboard and the
+screen (RIFT is on their own tool list). Sending keystrokes is playing for the
+player, EULA 6.A.3. Copying stays a human action. The forbidden calls are
+listed in the test. Also forbidden: reading memory, scraping the client cache,
+sniffing packets (EULA 9.C).
 
-**3. Скорость к zKillboard — константа, не настройка.** Цена превышения — бан
-IP до часа. 8 req/s проверены сотнями запросов без единого 429. Замерено: пул из
-8 потоков сам по себе давал **20 req/s**, потому что короткие страницы
-возвращаются быстро — поэтому бакет обязателен, ширины пула недостаточно.
+**3. The zKillboard rate is a constant, not a setting.** The price of exceeding
+it is an IP ban for up to an hour. 8 req/s was verified across hundreds of
+requests with not one 429. Measured: a pool of 8 threads on its own produced
+**20 req/s**, because short pages return fast — which is why the bucket is
+mandatory and a narrow pool is not enough.
 
-**4. Пустой `User-Agent` — 403 на zKillboard.** Ошибка при этом абсолютно
-непрозрачная. UA не бывает пустым (`config.user_agent`).
+**4. An empty `User-Agent` is a 403 on zKillboard.** The error is completely
+opaque when it happens. The UA is never empty (`config.user_agent`).
 
-**5. `r2z2.zkillboard.com` и `/asearch/` не трогаем.** r2z2 — отдельный бакет с
-лимитом 15 req/s и часовым баном. asearch — за Cloudflare challenge, CORS прибит
-к своему домену, не документирован, и **врёт на «alltime»**: в
-`cron/6.itemcleanup.php` стоит `$keepPerItem = 100000`, индекс предметов хранит
-только последние 100k килов на тип (≈18 месяцев). На реальном пилоте вернул 14
-цино-лоссов против 16 при полном скане. Для вопроса «когда-либо» это молчаливый
-ложноотрицательный ответ. Проверяется тестом по строковым литералам (docstring
-пропускается — объяснение должно жить в коде).
+**5. Do not touch `r2z2.zkillboard.com` or `/asearch/`.** r2z2 is a separate
+bucket with a 15 req/s limit and an hour-long ban. asearch sits behind a
+Cloudflare challenge, its CORS is pinned to its own domain, it is undocumented,
+and — decisively — **it lies about "alltime"**: `cron/6.itemcleanup.php` sets
+`$keepPerItem = 100000`, so the item index keeps only the last 100k kills per
+type (~18 months). On a real pilot it returned 14 cyno losses against 16 from a
+full scan. For an "ever?" question that is a silent false negative. Enforced by
+a test over string literals (the docstring is skipped — the explanation belongs
+in the code).
 
-⚠️ И сразу рядом, чтобы не выглядело забытым противоречием: **мы сами сделали
-такой же размен**, отменив `single_full_history` (см. «Что ищем»). Разница не
-в честности, а в том, чей это выбор и виден ли он. `/asearch/` врёт молча:
-отвечает «ничего не нашёл» там, где данных просто нет, и снаружи это
-неотличимо от чистого пилота. Одна страница — это наш собственный, записанный
-здесь потолок: «в последних 200 лоссах». Если однажды понадобится «когда-либо»
-— это `list_pages`, а не новый эндпоинт.
+⚠️ And right here, so it does not look like a forgotten contradiction: **we
+made the same trade ourselves** by retiring `single_full_history` (see "What is
+searched for"). The difference is not honesty but whose choice it is and
+whether it is visible. `/asearch/` lies silently: it answers "found nothing"
+where the data simply is not there, and from outside that is indistinguishable
+from a clean pilot. One page is our own ceiling, written down here: "in the
+last 200 losses". If "ever" is ever needed, that is `list_pages`, not a new
+endpoint.
 
-**6. Наборы цино выводятся из SDE, а не хардкодятся.** Атрибуты `canFit*`
-резолвятся **по имени**: их 32 штуки (`canFitShipGroup01..20`,
-`canFitShipType1..12`) с непоследовательной нумерацией. Хардкод диапазона
-1298–1300 молча теряет T3-крейсера (у 28646 это атрибуты 1301, 1872, 1879).
+**6. The cyno sets are derived from the SDE, not hard-coded.** The `canFit*`
+attributes are resolved **by name**: there are 32 of them
+(`canFitShipGroup01..20`, `canFitShipType1..12`) with non-consecutive
+numbering. Hard-coding the range 1298–1300 silently loses T3 cruisers (for
+28646 those are attributes 1301, 1872, 1879).
 
-**7. Две личности в `User-Agent`, никогда не сливать.** Проект идёт в
-открытый доступ, поэтому заголовок собирается из `PROJECT_URL` (программа,
-одинакова во всех копиях) и `operator` (человек за конкретной машиной,
-из чатлога или из `contact`). zKillboard банит по IP — значит подпись обязана
-принадлежать тому, чей трафик. Контакты автора живут только в `ui/about.py`
-и не смеют появляться в `core/` — там живёт вся сеть. `DEFAULTS["contact"]`
-обязан оставаться пустым: вписанное туда имя подпишет чужой трафик.
-Проверяется `tests/test_distribution.py`.
+**7. Two identities in the `User-Agent`, never merged.** The project is public,
+so the header is assembled from `PROJECT_URL` (the software, identical in every
+copy) and `operator` (the human at this particular machine, from a chat log or
+from `contact`). zKillboard bans by IP — so the signature must belong to
+whoever's traffic it is. The author's contacts live only in `ui/about.py` and
+must never appear in `core/`, where all the networking is.
+`DEFAULTS["contact"]` must stay empty: a name written there would sign somebody
+else's traffic. Enforced by `tests/test_distribution.py`.
 
-## Три ловушки в классификации
+## Three traps in the classification
 
-Каждая найдена на реальных данных и закрыта именованным тестом.
+Each was found in real data and closed by a named test.
 
-1. **`depth == 0` обязателен для A.** Вложенные предметы наследуют флаги
-   хай-слотов: собранный корабль в Ship Maintenance Bay даёт flag 28 на глубине
-   1. Без проверки фрейтер, везущий зафиченный рекон, читается как «цино зафичен».
-2. **Флаг не уникален на слот.** Заряды несут флаг своего модуля — на одном
-   флаге 27 может быть и модуль, и 52 ракеты. Решает пара (type_id ∈ modules) И
-   (диапазон флагов), никогда флаг отдельно.
-3. **Группы и типы не смешивать.** Venture — группа 25 «Frigate», Etana и
-   Rabisu — группа 832 «Logistics». Разворот типа обратно в его группу пометил
-   бы все T1-фрегаты и всех логистов игры.
+1. **`depth == 0` is required for A.** Nested items inherit high-slot flags: an
+   assembled ship in a Ship Maintenance Bay yields flag 28 at depth 1. Without
+   the check, a freighter hauling a fitted recon reads as "cyno fitted".
+2. **A flag is not unique per slot.** Charges carry their module's flag — one
+   flag 27 can hold both a module and 52 rockets. It is decided by the pair
+   (type_id ∈ modules) AND (flag range), never by the flag alone.
+3. **Do not mix groups and types.** Venture is group 25 "Frigate"; Etana and
+   Rabisu are group 832 "Logistics". Expanding a type back into its group would
+   flag every T1 frigate and every logistics ship in the game.
 
-## Факты, проверенные живьём (не менять по памяти)
+## Facts verified live (do not change from memory)
 
-- **ESI не умеет писать корп-контакты.** `POST /corporations/{id}/contacts` →
-  405, скоупа `esi-corporations.write_contacts.v1` не существует, тикет ESI #751
-  открыт с 2018. Из-за этого от исходной идеи с контактами отказались полностью.
-- **`POST /universe/ids/`**: максимум 500 имён (501 → 400), на 500 бывают 504,
-  рабочий чанк 150. **Дубликаты — жёсткий 400.** Совпадение нечёткое: `["Jita"]`
-  вернул альянс «Jita Holding Inc.» и корпорацию «jion ss Corp» — читаем только
-  массив `characters` и сверяем имя с запрошенным.
-- **zKillboard REST** отдаёт полные тела ESI: `victim.items` с флагами И
-  `attackers[]` с `ship_type_id` и `character_id`. Одна закачка отвечает на все
-  три вопроса. 200 килов на страницу, потолок 100 страниц. `/no-items/` и
-  `/no-attackers/` отключены навсегда, запятые в id не поддерживаются,
-  `pastSeconds` ограничен 7 сутками.
-- **Заголовок чатлога встречается ровно ОДИН раз**, проверено на файле в 408 КБ.
-  (В плане было ошибочно записано, что он повторяется — это был артефакт чтения
-  первых 14 и последних 8 строк файла на 13 строк.) EVE начинает новый файл на
-  сессию, поэтому первых 4 КБ достаточно.
-- **`Channel ID: local`** — язык-независимый маркер. Имя канала локализовано
-  («Локальный»), в имени файла есть хвост `_<charID>`.
-- **Имена персонажей**: собраны 329 живых ников из этих логов. 28% — CJK
-  (`冰喵`, `幻华 琉璃`); есть имя целиком из цифр (`599847624`) и двойные апострофы
-  (`Io ''Midnight'' Shadow`). Латинская маска резала бы четверть локала. Кириллицы
-  в никах нет — она намеренно вне разрешённого набора, чтобы русский текст в
-  буфере отсекался сам собой.
-- **Цино не всегда ограничивался хуллами — и это больше НЕ улика.** До
-  введения `canFitShipGroup` его фитили на новичковые фрегаты: в реальных килах
-  2014–2018 есть Velator, Ibis, Impairor, Reaper, Magnate. Стелс-бомберы носили
-  обычный цино вместо ковертного. Килмейлы настоящие, но предсказывают они
-  ничего: повторить такой фит пилот сегодня не может.
+- **ESI cannot write corporation contacts.** `POST /corporations/{id}/contacts`
+  → 405, the `esi-corporations.write_contacts.v1` scope does not exist, ESI
+  ticket #751 has been open since 2018. The original contacts idea was dropped
+  entirely because of this.
+- **`POST /universe/ids/`**: 500 names maximum (501 → 400), 500 sometimes gives
+  504, a working chunk is 150. **Duplicates are a hard 400.** Matching is
+  fuzzy: `["Jita"]` returned the alliance "Jita Holding Inc." and the
+  corporation "jion ss Corp" — read only the `characters` array and compare the
+  name with what was asked for.
+- **zKillboard REST** returns full ESI bodies: `victim.items` with flags AND
+  `attackers[]` with `ship_type_id` and `character_id`. One download answers
+  all three questions. 200 kills per page, a 100-page ceiling. `/no-items/` and
+  `/no-attackers/` are disabled permanently, commas in ids are unsupported,
+  `pastSeconds` is capped at 7 days.
+- **A chat log header appears exactly ONCE**, verified on a 408 KB file. (The
+  plan wrongly recorded that it repeats — that was an artefact of reading the
+  first 14 and last 8 lines of a 13-line file.) EVE starts a new file per
+  session, so the first 4 KB is enough.
+- **`Channel ID: local`** is the language-independent marker. The channel name
+  is localised, and the file name carries a `_<charID>` tail.
+- **Character names**: 329 live names were collected from these logs. 28% are
+  CJK (`冰喵`, `幻华 琉璃`); there is a name made entirely of digits
+  (`599847624`) and doubled apostrophes (`Io ''Midnight'' Shadow`). A Latin-only
+  mask would cut a quarter of local. There is no Cyrillic in names — it is
+  deliberately outside the allowed set so that Russian text in the clipboard is
+  rejected by itself.
+- **Cynos were not always restricted by hull — and that is NO LONGER
+  evidence.** Before `canFitShipGroup` existed they were fitted to rookie
+  frigates: real 2014–2018 kills include Velator, Ibis, Impairor, Reaper,
+  Magnate. Stealth bombers carried the regular cyno instead of the covert one.
+  The killmails are genuine, but they predict nothing: the pilot cannot repeat
+  such a fit today.
 
-  Раньше проект их засчитывал. **Решение развёрнуто 2026-08-20**, потому что на
-  живых данных это оказалось 727 улик из 1493 (49%), и в строке кораблей висели
-  Velator и Myrmidon у пилотов, не способных зажечь цино в принципе. Цена
-  замерена: 53 пилота из 1712 съехали вниз, из них 13 потеряли единственную
-  улику и стали чистыми. Если CCP вернёт цино на другие корпуса — пересобрать
-  SDE и перескан, отдельного кода не нужно.
+  The project used to count them. **The decision was reversed on 2026-08-20**
+  because on live data it turned out to be 727 findings out of 1493 (49%), and
+  the ship rows carried Velators and Myrmidons for pilots incapable of lighting
+  a cyno at all. The price was measured: 53 pilots of 1712 moved down, 13 of
+  them losing their only evidence and becoming clean. If CCP ever puts cynos
+  back on other hulls — rebuild the SDE and rescan; no separate code needed.
 
-  `ship_names` (423 записи) остаётся: на нём стоит защита `is_ship()` от
-  килмейлов MTU и структур.
+  `ship_names` (423 entries) stays: `is_ship()` protection against MTU and
+  structure killmails rests on it.
 
-## Кэш
+## The cache
 
-Улики **монотонны**: раз умер с цино — это уже навсегда. Поэтому положительный
-вердикт кэшируется вечно и такой пилот больше не запрашивается.
+Evidence is **monotone**: die with a cyno once and it is forever. So a positive
+verdict is cached permanently and that pilot is never fetched again.
 
-⚠️ **В кэш попадают только пилоты, у которых найден цино-модуль.** В EVE
-создаётся около 30 тысяч персонажей в сутки — быть справочником всех
-встреченных ников этот файл не может и не должен. Чистый вердикт дёшево
-получить заново и бессмысленно хранить. Замерено: модуль есть у **10.5%**
-встреченных, у каждого 5.8 сгруппированных строк улик. На миллион встреченных
-ников это ~105 тысяч записей и **56 МБ** — размер, с которым файл спокойно
-живёт рядом с exe и ездит вместе с ним.
+⚠️ **Only pilots with a cyno module found get into the cache.** EVE creates
+about thirty thousand characters a day — this file cannot and must not be a
+directory of every name ever seen. A clean verdict is cheap to obtain again and
+pointless to keep. Measured: **10.5%** of those encountered have a module, each
+with 5.8 grouped evidence rows. Per million names encountered that is ~105 000
+records and **56 MB** — a size that lives comfortably beside the exe and
+travels with it.
 
-Цена честная и её надо знать: **негативного кэша больше нет**. Повторная
-вставка того же локала не отвечает за секунду — красные и синие появляются
-мгновенно, остальные считаются заново. Замерено на 12 известных цино-пилотах:
-первый прогон 6.5 с, повторный **0.58 с** (только ESI).
+The price is honest and must be known: **there is no negative cache any more.**
+Pasting the same local again does not answer in a second — the reds and blues
+appear instantly, the rest are computed afresh. Measured on 12 known cyno
+pilots: first run 6.5 s, second **0.58 s** (ESI only).
 
-**Строка помнит, на какой вопрос она отвечала** — `pilots.scan_bits`,
-двухбитная сводка `analyze.Filters.as_bits`. Сравнивается на **равенство, а не
-на вложенность**. Узкая строка не годится для широкого вопроса очевидным
-образом: у пилота просто нет хулльных улик, их никто не искал. Но и широкая не
-годится для узкого: в её `ships_csv` лежат корабли, о которых узкий вопрос не
-спрашивал, а список улик под строкой при чтении фильтруется — иконки и
-раскрытие разошлись бы, а это ровно та ошибка, за которую проект уже заплатил
-однажды. Проверено живьём: включение «потенциального цино» перескан вызвало
-(0 из 12 из кэша), повторный прогон с ним же — 12 из 12.
+**A row remembers which question it answered** — `pilots.scan_bits`, the
+two-bit summary from `analyze.Filters.as_bits`. It is compared for **equality,
+not containment**. A narrow row is unfit for a wide question in the obvious
+way: the pilot simply has no hull evidence, because nobody looked for it. But a
+wide row is unfit for a narrow question too: its `ships_csv` holds ships the
+narrow question never asked about, while the evidence list beneath is filtered
+on read — the icons and the expansion would diverge, which is exactly the
+mistake this project has already paid for once. Verified live: turning
+"potential cyno" on forced a rescan (0 of 12 from cache); running again with it
+served 12 of 12.
 
-⚠️ **`findings` при чтении обязан фильтроваться** (`cache.get_findings(...,
-filters=)`). Таблица только дописывается и потому является ОБЪЕДИНЕНИЕМ всех
-вопросов, когда-либо заданных про этого пилота; хулльная строка, оставшаяся от
-старого широкого скана, иначе всплыла бы под строкой, иконки которой считались
-без неё.
+⚠️ **`findings` must be filtered on read** (`cache.get_findings(...,
+filters=)`). The table is append-only and is therefore the UNION of every
+question ever asked about that pilot; a hull row left over from an older, wider
+scan would otherwise surface under a row whose icons were computed without it.
 
-**Лимит 100 МБ** (`cache_limit_mb`) — предохранитель, а не механизм: чтобы его
-достичь, надо встретить ~1.8 млн разных цино-пилотов. Вытеснение идёт **долей,
-а не по одной строке**: место возвращает только вакуум в конце, поэтому цикл,
-который перемерял бы размер после каждого удаления, не завершился бы никогда.
-`PRAGMA auto_vacuum=INCREMENTAL` задаётся **при создании файла** — на готовой
-базе прагма молча ничего не делает, и тогда строки удалялись бы вечно, а файл
-не уменьшался.
+**The 100 MB limit** (`cache_limit_mb`) is a safety valve, not a mechanism:
+reaching it takes ~1.8 million distinct cyno pilots. Eviction goes **by
+proportion, not row by row**: space is only returned by the vacuum at the end,
+so a loop that re-measured the size after each delete would never terminate.
+`PRAGMA auto_vacuum=INCREMENTAL` is set **when the file is created** — on an
+existing database the pragma silently does nothing, and then rows would be
+deleted forever while the file never shrank.
 
 ## GUI
 
-Оформление взято из `f:/123/Jump planer/ui/styles.py` один-в-один: та же
-тёмная палитра (`BG_DEEP #0c0c0e`, `BG_PANEL #17171a`, `BORDER #32323a`,
-`ACCENT #4fc3f7`, `TEXT #d4d4d8`), тот же шрифт Segoe UI, те же имена объектов
-(`topbar`, `title`, `dim`, `primary`) и те же пресеты тем по фракциям
-(`config.theme`). Добавлены правила для `QTreeWidget` — в Jump planer
-стилизованы только таблицы и списки, а здесь всё окно это дерево.
+The styling is taken from `f:/123/Jump planer/ui/styles.py` one for one: the
+same dark palette (`BG_DEEP #0c0c0e`, `BG_PANEL #17171a`, `BORDER #32323a`,
+`ACCENT #4fc3f7`, `TEXT #d4d4d8`), the same Segoe UI, the same object names
+(`topbar`, `title`, `dim`, `primary`) and the same faction theme presets
+(`config.theme`). Rules for `QTreeWidget` were added — Jump Planner styles only
+tables and lists, whereas here the whole window is a tree.
 
-Строка пилота — **ник, иконки модулей, иконки кораблей**, всё в одну строку,
-без шапки: три заголовка не говорили ничего, чего не говорят сами иконки.
-Раскрытие устроено так же — иконка модуля, иконка корабля и его имя,
-чтобы глаз читал спойлер тем же способом, что и строку над ним; плюс `×N`,
-если строка стоит за несколько килмейлов.
+A pilot's row is **name, module icons, ship icons**, all on one line with no
+header: three column titles said nothing the icons do not. The expansion works
+the same way — a module icon, a ship icon and its name, so the eye reads the
+spoiler the way it read the row above it; plus `×N` when a row stands for
+several killmails.
 
-**Ширина колонки модулей считается из геометрии делегата**
-(`IconRowDelegate.width_for`) и ставится от **числа типов цино в игре**
-(`analyze.ALL_CYNO`), а не от тройки в уме. Зашитое число там уже было: 96 px,
-потом иконка выросла вместе с высотой строки, трём модулям стало нужно 100 —
-и пилот с полным набором рисовал два модуля и «+1». Ни один тест этого не
-заметил, потому что никто не знал, что эти два числа связаны.
+**The module column's width is computed from the delegate's geometry**
+(`IconRowDelegate.width_for`) and set from the **number of cyno types in the
+game** (`analyze.ALL_CYNO`) rather than a three somebody remembered. There was
+a hard-coded number there once: 96 px; then the icon grew with the row height,
+three modules needed 100, and a pilot with the full set drew two modules and a
+"+1". Not one test noticed, because nobody knew the two numbers were related.
 
-⚠️ В `width_for` есть `+1`, и он не косметический: `QRect.right()` —
-**включительная** граница, прямоугольник шириной W занимает `left…left+W-1`, а
-`_slots` сравнивается именно с ней. Ровно на этот пиксель и промахивались.
-Тест спрашивает сам `_slots`, а не повторяет формулу: повторение формулы —
-это и есть способ, которым числа разъезжаются.
+⚠️ There is a `+1` in `width_for` and it is not cosmetic: `QRect.right()` is an
+**inclusive** boundary, a rectangle of width W spans `left…left+W-1`, and
+`_slots` compares against exactly that. That is the pixel that was being
+missed. The test asks `_slots` itself rather than repeating the formula:
+repeating the formula is precisely how numbers drift apart.
 
-**Колонка ников — 168 px, а не 250.** Держали её не ники (99% хаба ≤ 125 px,
-самый длинный из 1402 — 152 px), а подпись улики под ними:
-`2026-05-03  died in a cyno hull` это 164 px, по-русски 184. Поэтому в окне
-подписи короткие — ключи `short.*` (`fitted` / `in hold` / `lost` / `flew`,
-«в фите» / «в трюме» / «потерян» / «летал»), им хватает 124/133 px. Консольные
-`kind.*` остались длинными: в терминале ширина не жмёт. Освободившиеся 90 px
-ушли кораблям — их в строке помещается 13 вместо 9.
+**The name column is 168 px, not 250.** What held it was not the names (99% of
+a hub ≤ 125 px, the longest of 1402 was 152 px) but the evidence label beneath
+them: `2026-05-03  died in a cyno hull` is 164 px, 184 in Russian. So the
+window uses short labels — the `short.*` keys (`fitted` / `in hold` / `lost` /
+`flew`), which need 124/133 px. The console `kind.*` strings stay long: a
+terminal has no column to widen. The 90 px freed went to ships — the row fits
+13 instead of 9.
 
-**Высота строки — одна константа `styles.ROW_H`**, и иконка считается от неё
-(`ICON = ROW_H − 2×INSET`), а не задаётся рядом. Раньше 20-пиксельная иконка
-жила в 30-пиксельной строке, и четыре лишних пикселя читались как щели между
-строками. Тест держит `IconRowDelegate.cell == ROW_H`: разъедутся они молча.
+**Row height is one constant, `styles.ROW_H`**, and the icon is derived from it
+(`ICON = ROW_H − 2×INSET`) rather than set beside it. A 20-pixel icon used to
+live in a 30-pixel row, and the four spare pixels read on screen as gaps
+between rows. A test holds `IconRowDelegate.cell == ROW_H`: they would drift
+apart silently.
 
-Порядок внутри строки — по убыванию опасности. Модули: Covert, обычный,
-индустриальный (`_MODULE_RANK`, не по type_id — 21096 сортируется раньше 28646
-и это задом наперёд). Корабли: Force Recon, Heavy Interdictor, прочие боевые,
-индустриальные, и в самом хвосте тихие (`_HULL_GROUP_RANK` + `is_quiet`).
+**The minimum window width is 230 px.** It was 516 — Qt derives a window's
+minimum from its layout, and a QLabel reports the full width of its text, so
+the title, the bottom hint and the "Check clipboard" button were setting the
+floor between them. `ResultsWindow._let_it_shrink` gives those three an
+`Ignored` horizontal policy so they can be squeezed and clipped; the tree,
+which is what the window is for, shrinks happily.
 
-⚠️ `is_quiet` — свойство **улики, а не корабля**. Buzzard, на котором стоял
-ковертный цино, тихим не является, а тот же Buzzard пустым — является. Один
-`ship_type_id` поэтому приходит с двумя разными ключами, и сортировка обязана
-складывать их в `dict` по кораблю, оставляя громкий: набор кортежей нарисовал
-бы иконку дважды и одну не там.
+⚠️ Below roughly 350 px the title and the "Check clipboard" button are squeezed
+out entirely. Rescanning is still available from the tray menu. That is the
+price of the halving and it was accepted deliberately.
 
-Пилот с модулями всегда выше пилота без модуля, даже если уровень у второго
-формально старше: `indy` имеет ранг 2, а `hull` — 3, и без этой поправки синий
-пилот с цино в руках оказывался под жёлтым без цино.
+⚠️ The saved-geometry sanity check in `_restore_geometry` was halved to match
+(400 → 200). Refusing to restore a rectangle the user is allowed to drag to
+would snap the window back to 1000×660 on every launch, which reads as "it
+forgot".
 
-Угрозу несёт цвет ника: `cyno` = RED `#ef5350`, `indy` = BLUE `#42a5f5`,
-`hull` = YELLOW `#f0c040`, `seen` = TEXT_DIM `#8e8e98`, `none` = GREY `#6e6e76`.
-`ORANGE` остался в палитре, но уровнем больше не является. `BLUE` намеренно не
-`ACCENT`: тот переопределяется пресетами тем, и синий уехал бы вместе с выбором
-фракции. `seen` и `none` — намеренно **разные** серые: в дереве они не
-встречаются (чистых там нет), но в шапке стоят рядом цифрами.
+Order within a row is by decreasing danger. Modules: covert, regular,
+industrial (`_MODULE_RANK`, not by type_id — 21096 sorts before 28646 and that
+is backwards). Ships: Force Recon, Heavy Interdictor, other combat,
+industrial, and dead last the quiet ones (`_HULL_GROUP_RANK` + `is_quiet`).
 
-В шапке — название и голые цветные цифры, по одной на уровень. Без слов: цвет
-тот же, каким подписан ник двумя пикселями ниже, а что значит цифра — говорит
-тултип. Строки «N пилотов за X с» больше нет; всё, что раньше жило под
-названием (сканирую…, отказ предохранителя, свои персонажи, не найдены в ESI),
-переехало в нижнюю подсказку.
+⚠️ `is_quiet` is a property of the **finding, not the ship**. A Buzzard that had
+a covert cyno in it is not quiet; the same Buzzard bare is. One `ship_type_id`
+therefore arrives with two different keys, and the sort must collapse them into
+a `dict` keyed by ship, keeping the louder one: a set of tuples would draw the
+icon twice and one of them in the wrong place.
 
-Кнопки — значки, нарисованные в `ui/glyphs.py`: шеврон вниз/вверх, булавка и
-воронка. Не файлы и не текстовые «▼»/«📌» — те зависят от подставленного
-Windows шрифта и не красятся в палитру. Подписи стали тултипами.
+A pilot with modules always ranks above a pilot without one, even when the
+latter's level is formally higher: `indy` has rank 2 and `hull` has 3, and
+without that correction a blue pilot holding a cyno ended up below a yellow one
+holding nothing.
 
-⚠️ Булавку пришлось перерисовать: первая версия (плоская шляпка и сужающееся
-книзу тело) на 16 пикселях читалась как **воронка**, а воронка в панели
-означает «фильтр». Наклонная булавка с шариком однозначна. Та самая воронка
-теперь нарисована отдельно и стоит на своём месте — это кнопка фильтров
-поиска; отказ булавки и есть аргумент за неё.
+The threat is carried by the name colour: `cyno` = RED `#ef5350`, `indy` = BLUE
+`#42a5f5`, `hull` = YELLOW `#f0c040`, `seen` = TEXT_DIM `#8e8e98`, `none` =
+GREY `#6e6e76`. `ORANGE` remains in the palette but is no longer a level.
+`BLUE` is deliberately not `ACCENT`: that one is overridden by the theme
+presets, and the blue would move with the faction choice. `seen` and `none` are
+deliberately **different** greys: they never meet in the tree (there are no
+clean pilots there), but they stand side by side as numbers in the header.
 
-**Фильтры — меню под воронкой, а не три кнопки в ряд.** Три абстрактных значка
-16×16 повторили бы ошибку булавки, а три текстовые подписи съели бы полшапки.
-Меню даёт полные фразы бесплатно. Воронка красится в `ACCENT`, когда набор
-отличается от умолчаний: скан, который стал вдвое медленнее или тише, обязан
-говорить об этом из шапки. Переключение сразу перезапускает проверку — список
-на экране получен под старый фильтр и отвечает на вопрос, который больше не
-задают.
+The header holds the name and bare coloured numbers, one per level. No words:
+the colour is the same one a pilot's name wears two pixels below, and a tooltip
+says what the number means. The "N pilots in X s" line is gone; everything that
+used to live under the title (scanning…, guard refusal, own characters, not
+found in ESI) moved to the hint at the bottom.
 
-⚠️ `_sync_filters` ставит галочки с `blockSignals`: `setChecked` шлёт
-`toggled`, и без блокировки окно сохраняло бы конфиг и запускало скан просто
-оттого, что прочитало собственные настройки — в том числе при постройке, когда
-сканировать ещё нечего.
+The buttons are glyphs drawn in `ui/glyphs.py`: chevron down/up, a pin and a
+funnel. Not files and not text "▼"/"📌" — those depend on whichever font
+Windows substitutes and take no palette colour. Their captions became tooltips.
 
-Каждый модуль обведён рамкой 2px своим цветом: Cyno — красный,
-Covert Cyno — фиолетовый `#ba68c8`, Industrial Cyno — синий.
+⚠️ The pin had to be redrawn: the first version (a flat head and a body
+tapering downward) read at 16 px as a **funnel**, and a funnel in a toolbar
+means "filter". A tilted pin with a ball head is unambiguous. That very funnel
+is now drawn separately and stands where it belongs — it is the search-filters
+button; the pin's rejection is the argument for it.
 
-⚠️ Рамка не декоративная. **Cyno I и Industrial Cyno отдают байт-идентичную
-иконку** — общий `iconID 1444`, `sha1` совпадает на обоих размерах. Без рамки
-красный случай и синий выглядят одинаково. У Covert Cyno графика своя, но на
-20 пикселях разница не читается, поэтому цвет получили все три.
+**Filters are a menu under the funnel, not three buttons in a row.** Three
+abstract 16×16 glyphs would repeat the pin's mistake, and three text captions
+would eat half the header. A menu gives full phrases for free. The funnel is
+tinted `ACCENT` when the set differs from the defaults: a scan that has become
+twice as slow, or quieter, must say so from the header. Flipping a filter
+restarts the check immediately — the list on screen was produced under the old
+filter and answers a question nobody is asking any more.
 
-⚠️ **Значок разряда сервер рисует через раз.** Из 37 Т2-хуллов 25 приходят
-без него (Falcon, Rapier, Onyx, Widow, все Blockade Runner и DST), а у Jaguar,
-Redeemer и всех четырёх Т3 он есть. Закономерности нет. Поэтому клин рисуется
-самостоятельно из `metaGroupID` (`meta_groups` в артефакте SDE) и **всегда
-поверх серверного** — иначе те 25 остались бы без значка, а 12 получили бы два.
-Букв «II»/«III» нет: на иконке 20px клин выходит 8px, текст в нём нечитаем.
+⚠️ `_sync_filters` ticks the boxes with `blockSignals`: `setChecked` emits
+`toggled`, and without the block the window would save the config and start a
+scan merely because it had read its own settings — including at construction
+time, when there is nothing to scan yet.
 
-Иконки берутся с `images.evetech.net/types/{id}/icon?size=64` — третий и
-последний сетевой хост проекта. `/render` не используется: он существует
-только для кораблей и отвечает 400 на все три модуля. Локальные дампы SDE
-картинок не содержат вовсе (`invTypes.iconID` — ключ в таблицу, которой в них
-нет), так что скачивание — единственный путь. 76 файлов, ~530 КБ, один раз;
-промах запоминается файлом `.miss`, иначе тип без картинки перезапрашивается
-на каждой перерисовке (эта дыра есть в кэше Jump planer).
+Every module is framed with a 2px border in its own colour: Cyno red, Covert
+Cyno purple `#ba68c8`, Industrial Cyno blue.
 
-Несколько иконок в одной ячейке рисует `IconRowDelegate`: Qt даёт элементу
-ровно одну иконку. В Jump planer та же задача решена рядом `QLabel` в
-`QHBoxLayout` — годится для одного виджета и слишком тяжело для дерева в
-несколько сотен строк.
+⚠️ The frame is not decorative. **Cyno I and Industrial Cyno return a
+byte-identical icon** — a shared `iconID 1444`, matching `sha1` at both sizes.
+Without the frame the red case and the blue one look the same. Covert Cyno has
+its own artwork, but at 20 pixels the difference does not read, so all three
+got a colour.
 
-`main.py` → `ui/tray.py`. Сканирование идёт в `QThread`, буфер слушает поток из
-`core.clipboard`, передача — через Qt-сигнал; GUI-поток только рисует.
-Закрытие окна прячет его в трей, а не завершает процесс.
+⚠️ **The server draws the tier badge only sometimes.** Of 37 T2 hulls, 25
+arrive without one (Falcon, Rapier, Onyx, Widow, every Blockade Runner and
+DST), while Jaguar, Redeemer and all four T3s have it. There is no pattern. So
+the wedge is drawn here from `metaGroupID` (`meta_groups` in the SDE artifact)
+and **always over the server's** — otherwise those 25 would have no badge and
+12 would have two. There is no "II"/"III" lettering: on a 20px icon the wedge
+is 8px across and any glyph inside it is mud.
 
-**Результаты приходят по мере готовности.** `ScanWorker` шлёт три сигнала:
-`stage_changed` (предохранитель пропустил, ESI ответил), `pilot_ready` (один
-пилот) и `done` (готовый результат). Полный хаб считается минутами, и всё это
-время окно раньше показывало пустоту. Кэшированные пилоты отдаются **до
-первого сетевого запроса** — а кэшируются только те, у кого цино найдено, — так
-что самые опасные ники появляются мгновенно.
+Icons come from `images.evetech.net/types/{id}/icon?size=64` — the project's
+third and last network host. `/render` is not used: it exists only for ships
+and answers 400 for all three modules. Local SDE dumps contain no images at all
+(`invTypes.iconID` is a key into a table they do not include), so downloading
+is the only route. 76 files, ~530 KB, once; a miss is remembered by a `.miss`
+file, or a type with no picture would be re-requested on every repaint (that
+hole exists in Jump Planner's cache).
 
-⚠️ Порядок вставки берётся из `scan.pilot_sort_key`, и та же функция сортирует
-финальный `show_result`. Две копии этого правила дали бы перетасовку списка в
-момент окончания скана — выглядит как баг, даже когда оба порядка защитимы.
-Проверено: потоковый порядок совпадает с финальным.
+Several icons in one cell are painted by `IconRowDelegate`: Qt gives an item
+exactly one icon. Jump Planner solves the same problem with a row of `QLabel`s
+in a `QHBoxLayout` — fine for one widget and far too heavy for a tree several
+hundred rows long.
 
-⚠️ Окно на старте скана поднимается через `show()` и **только** — без
-`raise_()` и `activateWindow()`. Забрать фокус у EVE посреди скана нельзя.
-Поднимает окно по-прежнему только конец скана, и только если что-то нашлось.
+`main.py` → `ui/tray.py`. Scanning happens in a `QThread`, the clipboard is
+watched by a thread from `core.clipboard`, and hand-off is by Qt signal; the
+GUI thread only draws. Closing the window hides it to the tray rather than
+ending the process.
 
-Язык интерфейса — `config.lang`, **по умолчанию `en`**: проект уходит на
-GitHub. Строки живут в `core/i18n.py` (Qt-free, поэтому консоль говорит на том
-же языке), кнопка RU/EN в шапке переключает мгновенно. Ловушка при добавлении
-строк: в `_build()` и `_menu()` виджеты создавались локальными переменными, а
-`retranslate()` умеет менять только то, на что есть ссылка в `self` — новую
-кнопку надо и сохранить, и вписать в `retranslate()`. Тест
-`test_i18n.py` сверяет наборы ключей EN и RU и совпадение `%`-подстановок:
-забытая строка иначе всплывает только у пользователя.
+**Results arrive as they become available.** `ScanWorker` emits three signals:
+`stage_changed` (the guard accepted, ESI answered), `pilot_ready` (one pilot)
+and `done` (the finished result). A full hub takes minutes, and the window used
+to show nothing for all of it. Cached pilots are handed over **before the first
+network request** — and only pilots with a cyno are cached — so the most
+dangerous names appear instantly.
 
-Причины отказа предохранителя двуязычны наполовину нарочно: `reason` остаётся
-английским (он уходит в лог), а `reason_key` + `reason_args` — то, что окно
-переводит.
+⚠️ Insertion order comes from `scan.pilot_sort_key`, and the same function
+sorts the final `show_result`. Two copies of that rule would shuffle the list
+the moment a scan ended — which looks like a bug even when both orders are
+defensible. Verified: the streamed order matches the final one.
 
-Положение и размер окна запоминаются в `config.window_rect` / `window_maximized`
-и восстанавливаются при старте — обычными числами, а не блобом
-`saveGeometry()`, чтобы конфиг оставался читаемым. При восстановлении
-проверяется, что прямоугольник пересекается с каким-нибудь существующим
-экраном: иначе отключённый с прошлого раза монитор уронил бы окно в пустоту, и
-это выглядело бы как «приложение не запустилось». Геометрия пишется при
-закрытии окна **и** при выходе из трея — выход мимо `closeEvent` не проходит.
+⚠️ At the start of a scan the window is raised with `show()` and **only** —
+no `raise_()`, no `activateWindow()`. Taking focus from EVE mid-scan is not
+acceptable. The end of a scan still raises the window, and only if something
+was found.
 
-Системный заголовок окна красится в тёмный через
-`DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE)` — Qt оформляет только
-клиентскую область, и белая полоса сидела поверх чёрного окна. Атрибут 20 с
-билда 18985, до него 19; неверный номер просто возвращает ошибку.
+The interface language is `config.lang`, **`en` by default**: the project is on
+GitHub. The strings live in `core/i18n.py` (Qt-free, so the console speaks the
+same language), and the RU/EN button in the header switches instantly. A trap
+when adding strings: in `_build()` and `_menu()` widgets were created as local
+variables, and `retranslate()` can only change what `self` holds a reference to
+— a new button has to be both stored and listed in `retranslate()`.
+`test_i18n.py` compares the EN and RU key sets and their `%` substitutions: a
+forgotten string otherwise surfaces only for the user.
 
-⚠️ Звать это надо **отложенно** (`QTimer.singleShot(0, ...)`) и через
-`windowHandle().winId()`, а не `self.winId()`. Внутри `showEvent` нативное окно
-ещё достраивается: `self.winId()` там может запустить повторное создание, а
-вызов «в лоб» возвращает `S_OK` и не перекрашивает ничего.
+Guard refusal reasons are half-bilingual on purpose: `reason` stays English (it
+goes to the log) while `reason_key` + `reason_args` are what the window
+translates.
 
-⚠️ **`setWindowFlag` прячет видимое окно** — это его задокументированный
-побочный эффект. Поэтому «поверх окон» обязан спросить `isVisible()` **до**
-смены флага и запомнить `geometry()`: иначе окно исчезает с первого клика и
-больше не появляется (выглядит в точности как падение), а новое нативное окно
-ставится по клиентскому прямоугольнику и уползает вверх на высоту заголовка за
-каждое нажатие. Оба случая закрыты тестами в `test_ui_geometry.py`.
+Window position and size are remembered in `config.window_rect` /
+`window_maximized` and restored at startup — as plain numbers rather than a
+`saveGeometry()` blob, so the config stays something a human can read. On
+restore it checks that the rectangle intersects some existing screen:
+otherwise a monitor unplugged since last run would drop the window into
+nowhere, and it would look like "the app did not start". Geometry is written on
+window close **and** on quitting from the tray — quitting bypasses
+`closeEvent`.
 
-⚠️ EVE в полноэкранном режиме перекрывает окно, и `SetForegroundWindow` против
-этого не помогает. Для работы держите игру в windowed/borderless или выносите
-окно на второй монитор. (Оверлей поверх игры — отдельная задача, не сделана.)
+The system title bar is painted dark through
+`DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE)` — Qt styles only the
+client area, and a white strip sat on top of a black window. The attribute is
+20 from build 18985 and 19 before that; the wrong number simply returns an
+error.
 
-## Состояние
+⚠️ It has to be called **deferred** (`QTimer.singleShot(0, ...)`) and through
+`windowHandle().winId()`, never `self.winId()`. Inside `showEvent` the native
+window is still being built: `self.winId()` there can trigger a second
+creation, and calling it head-on returns `S_OK` and repaints nothing.
 
-Фазы 1 и 2 готовы: ядро, консоль, трей и окно результатов. Проект
-готовится к публикации на GitHub (инвариант 7, `LICENSE`, `ui/about.py`).
+⚠️ **`setWindowFlag` hides a visible window** — that is its documented side
+effect. So "always on top" must ask `isVisible()` **before** changing the flag
+and remember `geometry()`: otherwise the window disappears on the first click
+and never returns (which looks exactly like a crash), and the new native window
+is placed by its client rectangle and creeps up by the height of its own title
+bar per click. Both cases are covered by tests in `test_ui_geometry.py`.
 
-Перед тем как что-то начинать — читать **`docs/STATE.md`**: там что
-сделано, что дальше, открытые вопросы и — главное — список **отменённых
-направлений**. Каждое из них стоило живой пробы, и возвращаться к ним
-без новых данных — зря потраченная сессия.
+⚠️ EVE in fullscreen paints over the window, and `SetForegroundWindow` does not
+help. Keep the game in windowed/borderless, or put the window on a second
+monitor. (An in-game overlay is a separate task and is not done.)
 
-Исходный план — `docs/PLAN.md` (копия внутри проекта). Он местами
-устарел: где он расходится с `docs/STATE.md` — прав `STATE.md`.
+## Status
+
+Phases 1 and 2 are complete: the core, the console, the tray and the results
+window. The project is published at
+<https://github.com/kersidjay69-art/Character-Check> (invariant 7, `LICENSE`,
+`ui/about.py`), and CI builds the executable from source with provenance.
+
+Before starting anything, read **`docs/STATE.md`**: what is done, what is next,
+the open questions and — above all — the list of **abandoned directions**. Each
+of them cost a live experiment, and returning to one without new data is a
+wasted session.

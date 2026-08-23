@@ -3,7 +3,7 @@
 [![build](https://github.com/kersidjay69-art/Character-Check/actions/workflows/ci.yml/badge.svg)](https://github.com/kersidjay69-art/Character-Check/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-*[Русская версия](README.ru.md)*
+*Also available in [Russian](README.ru.md).*
 
 Paste a local member list from EVE Online — find out which of those pilots
 have lit a cyno.
