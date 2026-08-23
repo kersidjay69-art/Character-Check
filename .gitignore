@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.localdata/
+.playwright-mcp/
+*.part
+*.db
+*.db-wal
+*.db-shm
+
+# PyInstaller output (see build.py). The .ico is generated from ui/tray's
+# beacon at build time, so it is not an asset to keep either.
+build/
+dist/
+*.spec
+
+# The killboard cache now lives beside the application (config.cache_dir), so
+# running from sources drops it here. *.db above already covers the file; this
+# keeps the folder itself out too.
+cache/

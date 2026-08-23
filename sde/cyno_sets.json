@@ -1,0 +1,1450 @@
+{
+ "_generated_by": "sde/build_cyno_sets.py",
+ "_built_at": "2026-08-20T10:03:33Z",
+ "_sde_path": "f:\\123\\fleet-manager-online\\dps\\data\\eve.db",
+ "_sde_dialect": "pyfa",
+ "_module_group": 658,
+ "modules": {
+  "21096": "Cynosural Field Generator I",
+  "28646": "Covert Cynosural Field Generator I",
+  "52694": "Industrial Cynosural Field Generator"
+ },
+ "hull_groups": {
+  "28": {
+   "name": "Hauler",
+   "modules": [
+    52694
+   ]
+  },
+  "380": {
+   "name": "Deep Space Transport",
+   "modules": [
+    52694
+   ]
+  },
+  "830": {
+   "name": "Covert Ops",
+   "modules": [
+    28646
+   ]
+  },
+  "833": {
+   "name": "Force Recon Ship",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "834": {
+   "name": "Stealth Bomber",
+   "modules": [
+    28646
+   ]
+  },
+  "894": {
+   "name": "Heavy Interdiction Cruiser",
+   "modules": [
+    21096
+   ]
+  },
+  "898": {
+   "name": "Black Ops",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "963": {
+   "name": "Strategic Cruiser",
+   "modules": [
+    28646
+   ]
+  },
+  "1202": {
+   "name": "Blockade Runner",
+   "modules": [
+    28646,
+    52694
+   ]
+  }
+ },
+ "hulls": {
+  "648": {
+   "name": "Badger",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "649": {
+   "name": "Tayra",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "650": {
+   "name": "Nereus",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "651": {
+   "name": "Hoarder",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "652": {
+   "name": "Mammoth",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "653": {
+   "name": "Wreathe",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "654": {
+   "name": "Kryos",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "655": {
+   "name": "Epithal",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "656": {
+   "name": "Miasmos",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "657": {
+   "name": "Iteron Mark V",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "1944": {
+   "name": "Bestower",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "2863": {
+   "name": "Primae",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "2998": {
+   "name": "Noctis",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "4363": {
+   "name": "Miasmos Quafe Ultra Edition",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "4388": {
+   "name": "Miasmos Quafe Ultramarine Edition",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "11172": {
+   "name": "Helios",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "11182": {
+   "name": "Cheetah",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "11188": {
+   "name": "Anathema",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "11192": {
+   "name": "Buzzard",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "11377": {
+   "name": "Nemesis",
+   "group_id": 834,
+   "group_name": "Stealth Bomber",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "11957": {
+   "name": "Falcon",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "11963": {
+   "name": "Rapier",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "11965": {
+   "name": "Pilgrim",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "11969": {
+   "name": "Arazu",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "11995": {
+   "name": "Onyx",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "12013": {
+   "name": "Broadsword",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "12017": {
+   "name": "Devoter",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "12021": {
+   "name": "Phobos",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "12032": {
+   "name": "Manticore",
+   "group_id": 834,
+   "group_name": "Stealth Bomber",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "12034": {
+   "name": "Hound",
+   "group_id": 834,
+   "group_name": "Stealth Bomber",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "12038": {
+   "name": "Purifier",
+   "group_id": 834,
+   "group_name": "Stealth Bomber",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "12729": {
+   "name": "Crane",
+   "group_id": 1202,
+   "group_name": "Blockade Runner",
+   "class": "combat",
+   "modules": [
+    28646,
+    52694
+   ]
+  },
+  "12731": {
+   "name": "Bustard",
+   "group_id": 380,
+   "group_name": "Deep Space Transport",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "12733": {
+   "name": "Prorator",
+   "group_id": 1202,
+   "group_name": "Blockade Runner",
+   "class": "combat",
+   "modules": [
+    28646,
+    52694
+   ]
+  },
+  "12735": {
+   "name": "Prowler",
+   "group_id": 1202,
+   "group_name": "Blockade Runner",
+   "class": "combat",
+   "modules": [
+    28646,
+    52694
+   ]
+  },
+  "12743": {
+   "name": "Viator",
+   "group_id": 1202,
+   "group_name": "Blockade Runner",
+   "class": "combat",
+   "modules": [
+    28646,
+    52694
+   ]
+  },
+  "12745": {
+   "name": "Occator",
+   "group_id": 380,
+   "group_name": "Deep Space Transport",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "12747": {
+   "name": "Mastodon",
+   "group_id": 380,
+   "group_name": "Deep Space Transport",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "12753": {
+   "name": "Impel",
+   "group_id": 380,
+   "group_name": "Deep Space Transport",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "19744": {
+   "name": "Sigil",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "22428": {
+   "name": "Redeemer",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "22430": {
+   "name": "Sin",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "22436": {
+   "name": "Widow",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "22440": {
+   "name": "Panther",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "29984": {
+   "name": "Tengu",
+   "group_id": 963,
+   "group_name": "Strategic Cruiser",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "29986": {
+   "name": "Legion",
+   "group_id": 963,
+   "group_name": "Strategic Cruiser",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "29988": {
+   "name": "Proteus",
+   "group_id": 963,
+   "group_name": "Strategic Cruiser",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "29990": {
+   "name": "Loki",
+   "group_id": 963,
+   "group_name": "Strategic Cruiser",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "32790": {
+   "name": "Etana",
+   "group_id": 832,
+   "group_name": "Logistics",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "32811": {
+   "name": "Miasmos Amastris Edition",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "32880": {
+   "name": "Venture",
+   "group_id": 25,
+   "group_name": "Frigate",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "33395": {
+   "name": "Moracha",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "33397": {
+   "name": "Chremoas",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "33675": {
+   "name": "Chameleon",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "33697": {
+   "name": "Prospect",
+   "group_id": 1283,
+   "group_name": "Expedition Frigate",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "35781": {
+   "name": "Fiend",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "42245": {
+   "name": "Rabisu",
+   "group_id": 832,
+   "group_name": "Logistics",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "42246": {
+   "name": "Caedes",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "44993": {
+   "name": "Pacifier",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "44995": {
+   "name": "Enforcer",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "44996": {
+   "name": "Marshal",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "45530": {
+   "name": "Virtuoso",
+   "group_id": 834,
+   "group_name": "Stealth Bomber",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "45531": {
+   "name": "Victor",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "48635": {
+   "name": "Tiamat",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "48636": {
+   "name": "Hydra",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "60764": {
+   "name": "Laelaps",
+   "group_id": 894,
+   "group_name": "Heavy Interdiction Cruiser",
+   "class": "combat",
+   "modules": [
+    21096
+   ]
+  },
+  "81008": {
+   "name": "Squall",
+   "group_id": 28,
+   "group_name": "Hauler",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "81046": {
+   "name": "Deluge",
+   "group_id": 1202,
+   "group_name": "Blockade Runner",
+   "class": "combat",
+   "modules": [
+    28646,
+    52694
+   ]
+  },
+  "81047": {
+   "name": "Torrent",
+   "group_id": 380,
+   "group_name": "Deep Space Transport",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  },
+  "85062": {
+   "name": "Sidewinder",
+   "group_id": 830,
+   "group_name": "Covert Ops",
+   "class": "combat",
+   "modules": [
+    28646
+   ]
+  },
+  "85229": {
+   "name": "Cobra",
+   "group_id": 833,
+   "group_name": "Force Recon Ship",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "85236": {
+   "name": "Python",
+   "group_id": 898,
+   "group_name": "Black Ops",
+   "class": "combat",
+   "modules": [
+    21096,
+    28646
+   ]
+  },
+  "89648": {
+   "name": "Venture Consortium Issue",
+   "group_id": 25,
+   "group_name": "Frigate",
+   "class": "indy",
+   "modules": [
+    52694
+   ]
+  }
+ },
+ "ship_names": {
+  "582": "Bantam",
+  "583": "Condor",
+  "584": "Griffin",
+  "585": "Slasher",
+  "586": "Probe",
+  "587": "Rifter",
+  "588": "Reaper",
+  "589": "Executioner",
+  "590": "Inquisitor",
+  "591": "Tormentor",
+  "592": "Navitas",
+  "593": "Tristan",
+  "594": "Incursus",
+  "596": "Impairor",
+  "597": "Punisher",
+  "598": "Breacher",
+  "599": "Burst",
+  "601": "Ibis",
+  "602": "Kestrel",
+  "603": "Merlin",
+  "605": "Heron",
+  "606": "Velator",
+  "607": "Imicus",
+  "608": "Atron",
+  "609": "Maulus",
+  "615": "Immolator",
+  "617": "Echo",
+  "620": "Osprey",
+  "621": "Caracal",
+  "622": "Stabber",
+  "623": "Moa",
+  "624": "Maller",
+  "625": "Augoror",
+  "626": "Vexor",
+  "627": "Thorax",
+  "628": "Arbitrator",
+  "629": "Rupture",
+  "630": "Bellicose",
+  "631": "Scythe",
+  "632": "Blackbird",
+  "633": "Celestis",
+  "634": "Exequror",
+  "635": "Opux Luxury Yacht",
+  "638": "Raven",
+  "639": "Tempest",
+  "640": "Scorpion",
+  "641": "Megathron",
+  "642": "Apocalypse",
+  "643": "Armageddon",
+  "644": "Typhoon",
+  "645": "Dominix",
+  "648": "Badger",
+  "649": "Tayra",
+  "650": "Nereus",
+  "651": "Hoarder",
+  "652": "Mammoth",
+  "653": "Wreathe",
+  "654": "Kryos",
+  "655": "Epithal",
+  "656": "Miasmos",
+  "657": "Iteron Mark V",
+  "670": "Capsule",
+  "671": "Erebus",
+  "672": "Caldari Shuttle",
+  "1944": "Bestower",
+  "2006": "Omen",
+  "2078": "Zephyr",
+  "2161": "Crucifier",
+  "2834": "Utu",
+  "2836": "Adrestia",
+  "2863": "Primae",
+  "2998": "Noctis",
+  "3514": "Revenant",
+  "3516": "Malice",
+  "3518": "Vangel",
+  "3532": "Echelon",
+  "3756": "Gnosis",
+  "3764": "Leviathan",
+  "3766": "Vigil",
+  "4302": "Oracle",
+  "4306": "Naga",
+  "4308": "Talos",
+  "4310": "Tornado",
+  "4363": "Miasmos Quafe Ultra Edition",
+  "4388": "Miasmos Quafe Ultramarine Edition",
+  "11011": "Guardian-Vexor",
+  "11129": "Gallente Shuttle",
+  "11132": "Minmatar Shuttle",
+  "11134": "Amarr Shuttle",
+  "11172": "Helios",
+  "11174": "Keres",
+  "11176": "Crow",
+  "11178": "Raptor",
+  "11182": "Cheetah",
+  "11184": "Crusader",
+  "11186": "Malediction",
+  "11188": "Anathema",
+  "11190": "Sentinel",
+  "11192": "Buzzard",
+  "11194": "Kitsune",
+  "11196": "Claw",
+  "11198": "Stiletto",
+  "11200": "Taranis",
+  "11202": "Ares",
+  "11365": "Vengeance",
+  "11371": "Wolf",
+  "11377": "Nemesis",
+  "11379": "Hawk",
+  "11381": "Harpy",
+  "11387": "Hyena",
+  "11393": "Retribution",
+  "11400": "Jaguar",
+  "11567": "Avatar",
+  "11936": "Apocalypse Imperial Issue",
+  "11938": "Armageddon Imperial Issue",
+  "11940": "Gold Magnate",
+  "11942": "Silver Magnate",
+  "11957": "Falcon",
+  "11959": "Rook",
+  "11961": "Huginn",
+  "11963": "Rapier",
+  "11965": "Pilgrim",
+  "11969": "Arazu",
+  "11971": "Lachesis",
+  "11978": "Scimitar",
+  "11985": "Basilisk",
+  "11987": "Guardian",
+  "11989": "Oneiros",
+  "11993": "Cerberus",
+  "11995": "Onyx",
+  "11999": "Vagabond",
+  "12003": "Zealot",
+  "12005": "Ishtar",
+  "12011": "Eagle",
+  "12013": "Broadsword",
+  "12015": "Muninn",
+  "12017": "Devoter",
+  "12019": "Sacrilege",
+  "12021": "Phobos",
+  "12023": "Deimos",
+  "12032": "Manticore",
+  "12034": "Hound",
+  "12038": "Purifier",
+  "12042": "Ishkur",
+  "12044": "Enyo",
+  "12729": "Crane",
+  "12731": "Bustard",
+  "12733": "Prorator",
+  "12735": "Prowler",
+  "12743": "Viator",
+  "12745": "Occator",
+  "12747": "Mastodon",
+  "12753": "Impel",
+  "13202": "Megathron Federate Issue",
+  "16227": "Ferox",
+  "16229": "Brutix",
+  "16231": "Cyclone",
+  "16233": "Prophecy",
+  "16236": "Coercer",
+  "16238": "Cormorant",
+  "16240": "Catalyst",
+  "16242": "Thrasher",
+  "17476": "Covetor",
+  "17478": "Retriever",
+  "17480": "Procurer",
+  "17619": "Caldari Navy Hookbill",
+  "17634": "Caracal Navy Issue",
+  "17636": "Raven Navy Issue",
+  "17703": "Imperial Navy Slicer",
+  "17709": "Omen Navy Issue",
+  "17713": "Stabber Fleet Issue",
+  "17715": "Gila",
+  "17718": "Phantasm",
+  "17720": "Cynabal",
+  "17722": "Vigilant",
+  "17726": "Apocalypse Navy Issue",
+  "17728": "Megathron Navy Issue",
+  "17732": "Tempest Fleet Issue",
+  "17736": "Nightmare",
+  "17738": "Machariel",
+  "17740": "Vindicator",
+  "17812": "Republic Fleet Firetail",
+  "17841": "Federation Navy Comet",
+  "17843": "Vexor Navy Issue",
+  "17918": "Rattlesnake",
+  "17920": "Bhaalgorn",
+  "17922": "Ashimmu",
+  "17924": "Succubus",
+  "17926": "Cruor",
+  "17928": "Daredevil",
+  "17930": "Worm",
+  "17932": "Dramiel",
+  "19720": "Revelation",
+  "19722": "Naglfar",
+  "19724": "Moros",
+  "19726": "Phoenix",
+  "19744": "Sigil",
+  "20125": "Curse",
+  "20183": "Providence",
+  "20185": "Charon",
+  "20187": "Obelisk",
+  "20189": "Fenrir",
+  "21097": "Goru's Shuttle",
+  "21628": "Guristas Shuttle",
+  "22428": "Redeemer",
+  "22430": "Sin",
+  "22436": "Widow",
+  "22440": "Panther",
+  "22442": "Eos",
+  "22444": "Sleipnir",
+  "22446": "Vulture",
+  "22448": "Absolution",
+  "22452": "Heretic",
+  "22456": "Sabre",
+  "22460": "Eris",
+  "22464": "Flycatcher",
+  "22466": "Astarte",
+  "22468": "Claymore",
+  "22470": "Nighthawk",
+  "22474": "Damnation",
+  "22544": "Hulk",
+  "22546": "Skiff",
+  "22548": "Mackinaw",
+  "22852": "Hel",
+  "23757": "Archon",
+  "23773": "Ragnarok",
+  "23911": "Thanatos",
+  "23913": "Nyx",
+  "23915": "Chimera",
+  "23917": "Wyvern",
+  "23919": "Aeon",
+  "24483": "Nidhoggur",
+  "24688": "Rokh",
+  "24690": "Hyperion",
+  "24692": "Abaddon",
+  "24694": "Maelstrom",
+  "24696": "Harbinger",
+  "24698": "Drake",
+  "24700": "Myrmidon",
+  "24702": "Hurricane",
+  "26840": "Raven State Issue",
+  "26842": "Tempest Tribal Issue",
+  "28352": "Rorqual",
+  "28606": "Orca",
+  "28659": "Paladin",
+  "28661": "Kronos",
+  "28665": "Vargur",
+  "28710": "Golem",
+  "28844": "Rhea",
+  "28846": "Nomad",
+  "28848": "Anshar",
+  "28850": "Ark",
+  "29248": "Magnate",
+  "29266": "Apotheosis",
+  "29336": "Scythe Fleet Issue",
+  "29337": "Augoror Navy Issue",
+  "29340": "Osprey Navy Issue",
+  "29344": "Exequror Navy Issue",
+  "29984": "Tengu",
+  "29986": "Legion",
+  "29988": "Proteus",
+  "29990": "Loki",
+  "30842": "InterBus Shuttle",
+  "32207": "Freki",
+  "32209": "Mimir",
+  "32305": "Armageddon Navy Issue",
+  "32307": "Dominix Navy Issue",
+  "32309": "Scorpion Navy Issue",
+  "32311": "Typhoon Fleet Issue",
+  "32788": "Cambion",
+  "32790": "Etana",
+  "32811": "Miasmos Amastris Edition",
+  "32872": "Algos",
+  "32874": "Dragoon",
+  "32876": "Corax",
+  "32878": "Talwar",
+  "32880": "Venture",
+  "33079": "Hematos",
+  "33081": "Taipan",
+  "33083": "Violator",
+  "33151": "Brutix Navy Issue",
+  "33153": "Drake Navy Issue",
+  "33155": "Harbinger Navy Issue",
+  "33157": "Hurricane Fleet Issue",
+  "33328": "Capsule - Genolution 'Auroral' 197-variant",
+  "33395": "Moracha",
+  "33397": "Chremoas",
+  "33468": "Astero",
+  "33470": "Stratios",
+  "33472": "Nestor",
+  "33513": "Leopard",
+  "33553": "Stratios Emergency Responder",
+  "33673": "Whiptail",
+  "33675": "Chameleon",
+  "33697": "Prospect",
+  "33816": "Garmur",
+  "33818": "Orthrus",
+  "33820": "Barghest",
+  "34317": "Confessor",
+  "34328": "Bowhead",
+  "34496": "Council Diplomatic Shuttle",
+  "34562": "Svipul",
+  "34590": "Victorieux Luxury Yacht",
+  "34828": "Jackdaw",
+  "35683": "Hecate",
+  "35779": "Imp",
+  "35781": "Fiend",
+  "37135": "Endurance",
+  "37453": "Crucifier Navy Issue",
+  "37454": "Vigil Fleet Issue",
+  "37455": "Griffin Navy Issue",
+  "37456": "Maulus Navy Issue",
+  "37457": "Deacon",
+  "37458": "Kirin",
+  "37459": "Thalia",
+  "37460": "Scalpel",
+  "37480": "Bifrost",
+  "37481": "Pontifex",
+  "37482": "Stork",
+  "37483": "Magus",
+  "37604": "Apostle",
+  "37605": "Minokawa",
+  "37606": "Lif",
+  "37607": "Ninazu",
+  "42124": "Vehement",
+  "42125": "Vendetta",
+  "42126": "Vanquisher",
+  "42241": "Molok",
+  "42242": "Dagon",
+  "42243": "Chemosh",
+  "42244": "Porpoise",
+  "42245": "Rabisu",
+  "42246": "Caedes",
+  "42685": "Sunesis",
+  "44993": "Pacifier",
+  "44995": "Enforcer",
+  "44996": "Marshal",
+  "45530": "Virtuoso",
+  "45531": "Victor",
+  "45534": "Monitor",
+  "45645": "Loggerhead",
+  "45647": "Caiman",
+  "45649": "Komodo",
+  "47269": "Damavik",
+  "47270": "Vedmak",
+  "47271": "Leshak",
+  "47466": "Praxis",
+  "48635": "Tiamat",
+  "48636": "Hydra",
+  "49710": "Kikimora",
+  "49711": "Drekavac",
+  "49712": "Rodiva",
+  "49713": "Zarmazd",
+  "52250": "Nergal",
+  "52252": "Ikitursa",
+  "52254": "Draugur",
+  "52907": "Zirnitra",
+  "54731": "Skybreaker",
+  "54732": "Stormbringer",
+  "54733": "Thunderchild",
+  "60764": "Laelaps",
+  "60765": "Raiju",
+  "64034": "Boobook",
+  "72811": "Cyclone Fleet Issue",
+  "72812": "Ferox Navy Issue",
+  "72869": "Myrmidon Navy Issue",
+  "72872": "Prophecy Navy Issue",
+  "72903": "Probe Fleet Issue",
+  "72904": "Heron Navy Issue",
+  "72907": "Magnate Navy Issue",
+  "72913": "Imicus Navy Issue",
+  "73787": "Naglfar Fleet Issue",
+  "73789": "Coercer Navy Issue",
+  "73790": "Revelation Navy Issue",
+  "73792": "Moros Navy Issue",
+  "73793": "Phoenix Navy Issue",
+  "73794": "Thrasher Fleet Issue",
+  "73795": "Cormorant Navy Issue",
+  "73796": "Catalyst Navy Issue",
+  "74141": "Geri",
+  "74316": "Bestla",
+  "77114": "Metamorphosis",
+  "77281": "Hubris",
+  "77283": "Bane",
+  "77284": "Karura",
+  "77288": "Valravn",
+  "77726": "Cybele",
+  "78333": "Mekubal",
+  "78366": "Alligator",
+  "78367": "Mamba",
+  "78369": "Khizriel",
+  "78414": "Shapash",
+  "78576": "Azariel",
+  "81008": "Squall",
+  "81040": "Avalanche",
+  "81046": "Deluge",
+  "81047": "Torrent",
+  "85062": "Sidewinder",
+  "85086": "Cenotaph",
+  "85087": "Tholos",
+  "85229": "Cobra",
+  "85236": "Python",
+  "87381": "Sarathiel",
+  "88001": "Babaroga",
+  "89240": "Pioneer",
+  "89607": "Odysseus",
+  "89647": "Pioneer Consortium Issue",
+  "89648": "Venture Consortium Issue",
+  "89649": "Outrider",
+  "89807": "Anhinga",
+  "89808": "Skua",
+  "91174": "Perseverance",
+  "91775": "Dragoon Navy Issue",
+  "91849": "Algos Navy Issue",
+  "91857": "Corax Navy Issue",
+  "91858": "Talwar Fleet Issue",
+  "92282": "Tenzin YC128 Campaign Bus",
+  "92283": "Moreau YC128 Campaign Bus",
+  "92284": "Roden YC128 Campaign Bus",
+  "92822": "Salvation",
+  "92823": "Simurgh",
+  "92824": "Gaia",
+  "92825": "Ymir"
+ },
+ "meta_groups": {
+  "615": 4,
+  "617": 4,
+  "2834": 4,
+  "2836": 4,
+  "3514": 4,
+  "3516": 4,
+  "3518": 4,
+  "3532": 4,
+  "4363": 4,
+  "4388": 4,
+  "11011": 4,
+  "11172": 2,
+  "11174": 2,
+  "11176": 2,
+  "11178": 2,
+  "11182": 2,
+  "11184": 2,
+  "11186": 2,
+  "11188": 2,
+  "11190": 2,
+  "11192": 2,
+  "11194": 2,
+  "11196": 2,
+  "11198": 2,
+  "11200": 2,
+  "11202": 2,
+  "11365": 2,
+  "11371": 2,
+  "11377": 2,
+  "11379": 2,
+  "11381": 2,
+  "11387": 2,
+  "11393": 2,
+  "11400": 2,
+  "11936": 4,
+  "11938": 4,
+  "11940": 4,
+  "11942": 4,
+  "11957": 2,
+  "11959": 2,
+  "11961": 2,
+  "11963": 2,
+  "11965": 2,
+  "11969": 2,
+  "11971": 2,
+  "11978": 2,
+  "11985": 2,
+  "11987": 2,
+  "11989": 2,
+  "11993": 2,
+  "11995": 2,
+  "11999": 2,
+  "12003": 2,
+  "12005": 2,
+  "12011": 2,
+  "12013": 2,
+  "12015": 2,
+  "12017": 2,
+  "12019": 2,
+  "12021": 2,
+  "12023": 2,
+  "12032": 2,
+  "12034": 2,
+  "12038": 2,
+  "12042": 2,
+  "12044": 2,
+  "12729": 2,
+  "12731": 2,
+  "12733": 2,
+  "12735": 2,
+  "12743": 2,
+  "12745": 2,
+  "12747": 2,
+  "12753": 2,
+  "13202": 4,
+  "17619": 4,
+  "17634": 4,
+  "17636": 4,
+  "17703": 4,
+  "17709": 4,
+  "17713": 4,
+  "17715": 4,
+  "17718": 4,
+  "17720": 4,
+  "17722": 4,
+  "17726": 4,
+  "17728": 4,
+  "17732": 4,
+  "17736": 4,
+  "17738": 4,
+  "17740": 4,
+  "17812": 4,
+  "17841": 4,
+  "17843": 4,
+  "17918": 4,
+  "17920": 4,
+  "17922": 4,
+  "17924": 4,
+  "17926": 4,
+  "17928": 4,
+  "17930": 4,
+  "17932": 4,
+  "20125": 2,
+  "21097": 3,
+  "21628": 4,
+  "22428": 2,
+  "22430": 2,
+  "22436": 2,
+  "22440": 2,
+  "22442": 2,
+  "22444": 2,
+  "22446": 2,
+  "22448": 2,
+  "22452": 2,
+  "22456": 2,
+  "22460": 2,
+  "22464": 2,
+  "22466": 2,
+  "22468": 2,
+  "22470": 2,
+  "22474": 2,
+  "22544": 2,
+  "22546": 2,
+  "22548": 2,
+  "26840": 4,
+  "26842": 4,
+  "28659": 2,
+  "28661": 2,
+  "28665": 2,
+  "28710": 2,
+  "28844": 2,
+  "28846": 2,
+  "28848": 2,
+  "28850": 2,
+  "29336": 4,
+  "29337": 4,
+  "29340": 4,
+  "29344": 4,
+  "29984": 14,
+  "29986": 14,
+  "29988": 14,
+  "29990": 14,
+  "32207": 4,
+  "32209": 4,
+  "32305": 4,
+  "32307": 4,
+  "32309": 4,
+  "32311": 4,
+  "32788": 4,
+  "32790": 4,
+  "32811": 4,
+  "33079": 4,
+  "33081": 4,
+  "33083": 4,
+  "33151": 4,
+  "33153": 4,
+  "33155": 4,
+  "33157": 4,
+  "33328": 4,
+  "33395": 4,
+  "33397": 4,
+  "33468": 4,
+  "33470": 4,
+  "33472": 4,
+  "33553": 4,
+  "33673": 2,
+  "33675": 2,
+  "33697": 2,
+  "33816": 4,
+  "33818": 4,
+  "33820": 4,
+  "34317": 14,
+  "34496": 4,
+  "34562": 14,
+  "34590": 4,
+  "34828": 14,
+  "35683": 14,
+  "35779": 4,
+  "35781": 4,
+  "37135": 2,
+  "37453": 4,
+  "37454": 4,
+  "37455": 4,
+  "37456": 4,
+  "37457": 2,
+  "37458": 2,
+  "37459": 2,
+  "37460": 2,
+  "37480": 2,
+  "37481": 2,
+  "37482": 2,
+  "37483": 2,
+  "42124": 4,
+  "42125": 4,
+  "42126": 4,
+  "42241": 4,
+  "42242": 4,
+  "42243": 4,
+  "42245": 4,
+  "42246": 4,
+  "44993": 2,
+  "44995": 2,
+  "44996": 2,
+  "45530": 4,
+  "45531": 4,
+  "45534": 2,
+  "45645": 4,
+  "45647": 4,
+  "45649": 4,
+  "48635": 2,
+  "48636": 2,
+  "49713": 2,
+  "52250": 2,
+  "52252": 2,
+  "52254": 2,
+  "60764": 4,
+  "60765": 4,
+  "72811": 4,
+  "72812": 4,
+  "72869": 4,
+  "72872": 4,
+  "72903": 4,
+  "72904": 4,
+  "72907": 4,
+  "72913": 4,
+  "73787": 4,
+  "73789": 4,
+  "73790": 4,
+  "73792": 4,
+  "73793": 4,
+  "73794": 4,
+  "73795": 4,
+  "73796": 4,
+  "74141": 4,
+  "74316": 4,
+  "77281": 2,
+  "77283": 2,
+  "77284": 2,
+  "77288": 2,
+  "77726": 4,
+  "78333": 4,
+  "78366": 4,
+  "78367": 4,
+  "78369": 4,
+  "78414": 4,
+  "78576": 4,
+  "81046": 2,
+  "81047": 2,
+  "85062": 4,
+  "85086": 4,
+  "85087": 4,
+  "85229": 4,
+  "85236": 4,
+  "87381": 4,
+  "88001": 2,
+  "89607": 4,
+  "89647": 4,
+  "89648": 4,
+  "89649": 2,
+  "89808": 14,
+  "91174": 4,
+  "91775": 4,
+  "91849": 4,
+  "91857": 4,
+  "91858": 4,
+  "92282": 4,
+  "92283": 4,
+  "92284": 4,
+  "92822": 2,
+  "92823": 2,
+  "92824": 2,
+  "92825": 2
+ }
+}
