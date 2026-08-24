@@ -7,8 +7,9 @@ __pycache__/
 *.db-wal
 *.db-shm
 
-# PyInstaller output (see build.py). The .ico is generated from ui/tray's
-# beacon at build time, so it is not an asset to keep either.
+# Build output -- PyInstaller (build.py) and pynsist (build_pynsist.py, which
+# writes build/installer.cfg and build/nsis/). The .ico is generated from
+# assets/icon.png at build time, so it is not an asset to keep either.
 build/
 dist/
 *.spec
@@ -17,3 +18,11 @@ dist/
 # running from sources drops it here. *.db above already covers the file; this
 # keeps the folder itself out too.
 cache/
+
+# Collected statistics (stats/collect.py). The numbers belong to whoever owns
+# the repository -- the traffic endpoints answer nobody else -- and a daily
+# snapshot committed by hand would be a commit a day of pure churn. The
+# collector itself is tracked; what it writes is not. Delete these two lines
+# if the history is worth keeping in git after all.
+stats/*.csv
+stats/collect.log
