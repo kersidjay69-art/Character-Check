@@ -218,7 +218,7 @@ CCP просит сторонние инструменты представля�
 отвечает 403 на пустой. Заголовок собирается из **двух разных вещей**:
 
 ```
-CharacterCheck/0.1 (+https://github.com/kersidjay69-art/Character-Check; Leya Sokard)
+CharacterCheck/0.2 (+https://github.com/kersidjay69-art/Character-Check; Leya Sokard)
                      |                                                    |
                      программа, одна на все копии                         кто запустил эту
 ```

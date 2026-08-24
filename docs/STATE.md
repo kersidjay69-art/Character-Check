@@ -9,6 +9,41 @@ was abandoned and why.
 
 ---
 
+## Right now (2026-08-24)
+
+**0.2 is released.** `git tag v0.2` was pushed, CI built it and published the
+archive with a provenance attestation. `config.VERSION` is `"0.2"`. The working
+tree is clean, `main` is pushed, and a built copy also sits in the author's
+`Desktop\CC\CharacterCheck\` (rebuilt with `build.py --dest`).
+
+**Three things are closed and must not be reopened without new data.** Each
+cost a live experiment, and the detail is further down this file:
+
+1. the antivirus counter — three measured failures: distribution format,
+   bootloader bytes, and now the packager;
+2. zKillboard `/stats/` screening — measured on 167 pilots; it cannot pay, and
+   the version that would save anything silently clears real cyno pilots;
+3. a second interface language — removed on request, and `README.ru.md` is
+   documentation rather than interface.
+
+**Two open actions, both the author's rather than the code's:**
+
+- report the Microsoft false positive (`Trojan:Win32/Wacatac.C!ml`) at
+  <https://www.microsoft.com/en-us/wdsi/filesubmission>. It is the only engine
+  that matters — it is on every Windows machine by default — and it is the one
+  the pynsist experiment failed to shift;
+- apply to **SignPath Foundation**. After three failed packaging hypotheses a
+  signature is the only lever left, and both of its prerequisites (a public
+  repository, a CI build) have existed since 3.4.
+
+**Open questions worth reading before touching anything** are at the bottom of
+this file: the 429s in `app.log` versus invariant 3 (still not the experiment
+that would settle it), the CCP → Fenris Creations rename in the disclaimer
+(legal-entity suffix unverified — **do not guess it**), and how to ask them
+whether this is allowed at all.
+
+---
+
 ## Done
 
 | Phase | What | Where |

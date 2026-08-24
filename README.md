@@ -222,7 +222,7 @@ zKillboard answers 403 to an empty one outright. The header is assembled from
 **two different things**:
 
 ```
-CharacterCheck/0.1 (+https://github.com/kersidjay69-art/Character-Check; Leya Sokard)
+CharacterCheck/0.2 (+https://github.com/kersidjay69-art/Character-Check; Leya Sokard)
                      |                                                    |
                      the software, same in every copy                      who is running this one
 ```
