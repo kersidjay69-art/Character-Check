@@ -40,18 +40,31 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
     from core import config, i18n
-    from ui import styles
+    from ui import assets, single_instance, styles
 
     cfg = config.load()
     _start_logging(config.data_dir())
-    i18n.set_language(cfg.get("lang"))
 
     app = QApplication(sys.argv)
     app.setApplicationName("Character Check")
+    # Set on the application, not per window: it covers the results window,
+    # the About dialog and the taskbar in one line. A missing asset yields an
+    # empty QIcon, and setting an empty icon is a no-op.
+    app.setWindowIcon(assets.logo_icon())
     # Applied before the UI modules read ACCENT, exactly as Jump Planner does.
     app.setStyleSheet(styles.apply_theme(cfg.get("theme", "default")))
     # The window closing must not end the process -- the app lives in the tray.
     app.setQuitOnLastWindowClosed(False)
+
+    # One copy at a time. Two would make 16 requests a second at zKillboard
+    # from one address, against a limit that exists because the penalty is an
+    # IP ban, and would share one SQLite cache while both ran eviction on it.
+    # A second launch is not an error, though: it is somebody asking for the
+    # window, so the running copy shows itself and this process leaves quietly.
+    server = single_instance.take_or_signal(config.data_dir())
+    if server is None:
+        logging.info("%s", i18n.t("main.already_running"))
+        return 0
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
         # Say it wherever anyone can hear it: a frozen build has no console.
@@ -61,7 +74,7 @@ def main() -> int:
         return 2
 
     from ui.tray import TrayApp
-    tray = TrayApp(app)
+    tray = TrayApp(app, instance_server=server)
     tray.window.show()
     return app.exec()
 

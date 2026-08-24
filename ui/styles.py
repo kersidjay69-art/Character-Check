@@ -1,12 +1,18 @@
 """EVE-themed dark stylesheet, matching the look of Jump Planner.
 
-The palette is copied verbatim from `f:/123/Jump planer/ui/styles.py` so the
-two apps look like one family. Two additions were needed here:
+The neutral greys are copied verbatim from `f:/123/Jump planer/ui/styles.py`,
+so the two apps look like one family. Three things are this project's own:
 
   * QTreeWidget/QTreeView rules -- Jump Planner styles QTableWidget and
     QListWidget but never a tree, and this app's whole window is a tree.
   * Verdict colours, mapped onto the palette's existing status colours rather
     than inventing new ones.
+  * The accent. Jump Planner's is `#4fc3f7`; this one is amber, taken from the
+    project's own logo -- the only artwork it owns, and the one thing that
+    should not look borrowed. Chosen by measurement rather than by eye: 8.2:1
+    against BG_PANEL (the blue managed 8.9), and 22.9 / 19.6 degrees of hue
+    away from the `cyno` red and the `hull` yellow, which it must never be
+    mistaken for.
 
 Themes only swap the accent; the dark base stays, as in EVE's Photon UI.
 """
@@ -19,20 +25,17 @@ BG_CARD = "#1c1c20"
 BG_HEADER = "#131316"
 BORDER = "#32323a"
 BORDER_LT = "#4a4a55"
-ACCENT = "#4fc3f7"
+ACCENT = "#ff944d"
 ACCENT2 = "#00bcd4"
 TEXT = "#d4d4d8"
 TEXT_DIM = "#8e8e98"
-TEXT_LINK = "#4fc3f7"
 SELECT_BG = "#2c2c34"
 PRIMARY_BG = "#26262e"
 PRIMARY_BG_HOVER = "#34343e"
 
 YELLOW = "#f0c040"
-GREEN = "#4caf50"
 ORANGE = "#ff9800"
 RED = "#ef5350"
-RED_DARK = "#b71c1c"
 GREY = "#6e6e76"
 # Same Material row as RED and ORANGE. Deliberately NOT `ACCENT`: that one is
 # rewritten per faction theme, and an industrial verdict must not change colour
@@ -82,8 +85,14 @@ META_COLORS = {
 # 26px cell -- which read on screen as gaps between the rows.
 ROW_H = 30
 
+# The logo beside the title in the topbar. Deliberately small: it is the same
+# picture the taskbar shows, and at this size it is decoration -- the radar
+# dial does not read below about 32 px. Larger would make the topbar taller
+# for no information gained.
+LOGO_H = 22
+
 THEME_PRESETS = [
-    {"id": "default", "name": "Default", "accent": "#4fc3f7", "accent2": "#00bcd4"},
+    {"id": "default", "name": "Default", "accent": "#ff944d", "accent2": "#e07b39"},
     {"id": "amarr", "name": "Amarr Empire", "accent": "#e0b347", "accent2": "#caa030"},
     {"id": "gallente", "name": "Gallente Federation", "accent": "#34c79a",
      "accent2": "#26a37d"},
@@ -102,6 +111,15 @@ THEMES = {p["id"]: p for p in THEME_PRESETS}
 
 _QSS_TEMPLATE = """
 QMainWindow {{
+    background: {BG_DEEP};
+}}
+
+/* The central widget, painted explicitly. `QWidget` below is transparent so
+   that panels and rows can sit on whatever is under them -- but the strips
+   that belong to no widget at all (the margin around the tree, the row the
+   hint sits in) then paint nothing whatsoever, which grabs as fully
+   transparent pixels rather than as the window's dark background. */
+QWidget#central {{
     background: {BG_DEEP};
 }}
 
@@ -177,8 +195,8 @@ QPushButton#primary {{
     border: 1px solid {ACCENT};
     font-weight: bold;
     font-size: 13px;
-    /* Snug to the label. No fixed width: the Russian caption is longer than
-       the English one and the button retranslates live. */
+    /* Snug to the label rather than a fixed width: this rule is shared, and
+       a width that suits one caption clips another. */
     padding: 6px 12px;
 }}
 
@@ -196,6 +214,39 @@ QPushButton#icon_btn {{
 
 QPushButton#icon_btn:hover {{
     color: {ACCENT};
+}}
+
+/* Square glyph buttons -- the two that DO something (check the clipboard,
+   empty the list), as opposed to the borderless ones that only change what is
+   already on screen. The border is the whole difference: an action needs to
+   look like a button, not like a mark floating in the bar. */
+QPushButton#square_btn {{
+    background: {BG_PANEL};
+    border: 1px solid {BORDER};
+    border-radius: 3px;
+    padding: 0px;
+}}
+
+QPushButton#square_btn:hover {{
+    background: {BORDER};
+    border-color: {ACCENT};
+}}
+
+QPushButton#square_btn:pressed {{
+    background: {BORDER_LT};
+}}
+
+QPushButton#square_btn:disabled {{
+    background: {BG_PANEL};
+    border-color: {BORDER};
+}}
+
+/* The contacts row at the foot of the window. BORDER, not ACCENT: the topbar
+   already owns two accent lines, and a third at the bottom would compete for
+   the eye with the least important row on screen. */
+QFrame#footer {{
+    background: {BG_PANEL};
+    border-top: 1px solid {BORDER};
 }}
 
 QLineEdit, QComboBox {{
@@ -226,7 +277,10 @@ QComboBox QAbstractItemView {{
 /* Trees are this app's main surface; Jump Planner only styles tables, so
    these rules mirror its QTableWidget look one to one. */
 QTreeWidget, QTreeView {{
-    background: {BG_PANEL};
+    /* Transparent, and the viewport paints its own base instead -- see
+       `ResultsWindow._paint_backdrop`. A background set here would be painted
+       AFTER the event filter and would cover the backdrop picture entirely. */
+    background: transparent;
     alternate-background-color: {BG_CARD};
     color: {TEXT};
     border: 1px solid {BORDER};
@@ -396,11 +450,10 @@ def apply_theme(theme_id: str) -> str:
 
     Call before the UI modules read ACCENT, i.e. at startup.
     """
-    global ACCENT, ACCENT2, TEXT_LINK, MAIN_QSS
+    global ACCENT, ACCENT2, MAIN_QSS
     t = THEMES.get(theme_id, THEMES["default"])
     ACCENT = t["accent"]
     ACCENT2 = t["accent2"]
-    TEXT_LINK = ACCENT
     MAIN_QSS = _build_qss()
     return MAIN_QSS
 

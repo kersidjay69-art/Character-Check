@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import webbrowser
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton,
     QVBoxLayout,
 )
 
-from core import config
+from core import clipboard, config, i18n
 
 from . import styles
 
@@ -30,20 +30,15 @@ TELEGRAM_URL = "https://t.me/KersidJay"
 CHARACTER = "Leya Sokard"
 CHARACTER_URL = "https://zkillboard.com/character/96931519/"
 
-DISCLAIMER = (
-    "Инструмент читает только публичные данные: буфер обмена, заголовки "
-    "чатлогов, ESI и zKillboard. Он не связан с CCP hf и не одобрен ею — CCP "
-    "не одобряет никакие сторонние приложения. EVE Online и все связанные "
-    "материалы — собственность CCP hf.\n\n"
-    "Распространяется по лицензии Apache 2.0, без каких-либо гарантий. "
-    "Ответственность за использование несёт тот, кто запустил программу."
-)
+# The disclaimer lives in core/i18n.py with the rest of the interface
+# text ("about.disclaimer"). Only the author's handles are kept here --
+# they are the one thing that must exist in exactly one place.
 
 
 class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("О программе")
+        self.setWindowTitle(i18n.t("about.title"))
         self.setMinimumWidth(520)
         self.setLayout(self._build())
 
@@ -51,8 +46,8 @@ class AboutDialog(QDialog):
         title = QLabel("CHARACTER CHECK")
         title.setObjectName("title")
 
-        version = QLabel("версия %s   ·   %s" % (config.VERSION,
-                                                 config.PROJECT_URL))
+        version = QLabel(i18n.t("about.version", config.VERSION,
+                                config.PROJECT_URL))
         version.setObjectName("dim")
         version.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
@@ -63,7 +58,7 @@ class AboutDialog(QDialog):
         ua.setWordWrap(True)
         ua.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        note = QLabel(DISCLAIMER)
+        note = QLabel(i18n.t("about.disclaimer"))
         note.setObjectName("dim")
         note.setWordWrap(True)
 
@@ -78,16 +73,23 @@ class AboutDialog(QDialog):
         contacts.setSpacing(8)
         # Discord has no per-username link, so the handle goes to the
         # clipboard instead -- the same compromise Fleet Manager Online makes.
-        contacts.addWidget(self._button("Discord: " + DISCORD,
-                                        lambda: self._copy(DISCORD)))
-        contacts.addWidget(self._button("Telegram: " + TELEGRAM,
-                                        lambda: webbrowser.open(TELEGRAM_URL)))
-        contacts.addWidget(self._button("EVE: " + CHARACTER,
-                                        lambda: webbrowser.open(CHARACTER_URL)))
+        # Here the caption carries the handle and the tooltip says what the
+        # click does; the window's own footer is the other way round, because
+        # there the caption sets the minimum width and here it does not.
+        contacts.addWidget(self._button(
+            "Discord: " + DISCORD, lambda: self._copy(DISCORD),
+            i18n.t("contact.tip_discord", DISCORD)))
+        contacts.addWidget(self._button(
+            "Telegram: " + TELEGRAM, lambda: webbrowser.open(TELEGRAM_URL),
+            i18n.t("contact.tip_telegram", TELEGRAM)))
+        contacts.addWidget(self._button(
+            "EVE: " + CHARACTER, lambda: webbrowser.open(CHARACTER_URL),
+            i18n.t("contact.tip_eve", CHARACTER)))
         contacts.addStretch(1)
 
         close = QPushButton(i18n.t("about.close"))
         close.setObjectName("primary")
+        close.setToolTip(i18n.t("about.close_tip"))
         close.clicked.connect(self.accept)
         bottom = QHBoxLayout()
         bottom.addStretch(1)
@@ -108,11 +110,21 @@ class AboutDialog(QDialog):
         layout.addLayout(bottom)
         return layout
 
-    def _button(self, text: str, on_click) -> QPushButton:
+    def _button(self, text: str, on_click, tip: str = "") -> QPushButton:
         btn = QPushButton(text)
+        btn.setToolTip(tip)
         btn.clicked.connect(on_click)
         return btn
 
     def _copy(self, text: str) -> None:
+        """Copy a handle and say so in the title bar, then put the title back.
+
+        `clipboard.expect` first: the watcher polls a sequence number and
+        cannot tell this write from a paste, so without it the handle comes
+        straight back as a scan the user never asked for.
+        """
+        clipboard.expect(text)
         QApplication.clipboard().setText(text)
-        self.setWindowTitle(i18n.t("about.copied", text))
+        self.setWindowTitle(i18n.t("contact.copied", text))
+        QTimer.singleShot(
+            2500, lambda: self.setWindowTitle(i18n.t("about.title")))

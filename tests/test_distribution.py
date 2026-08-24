@@ -276,7 +276,15 @@ class TestVersionParsing(unittest.TestCase):
         return build._version_tuple(text)
 
     def test_the_shipped_version_parses(self):
-        self.assertEqual((0, 1, 0, 0), self.parse(config.VERSION))
+        """Whatever `VERSION` currently says, it must yield four numbers whose
+        first two are its own. Pinned to a literal tuple this test failed on
+        every version bump, which teaches the next reader to edit the test
+        rather than to trust it."""
+        parts = [int(p) for p in config.VERSION.split(".")[:2]]
+        got = self.parse(config.VERSION)
+        self.assertEqual(4, len(got))
+        self.assertEqual(tuple(parts), got[:len(parts)])
+        self.assertNotEqual((0, 0, 0, 0), got)
 
     def test_it_pads_and_truncates_to_four(self):
         self.assertEqual((1, 2, 3, 0), self.parse("1.2.3"))
@@ -292,6 +300,107 @@ class TestVersionParsing(unittest.TestCase):
         """A build must not be the thing that discovers a typo in VERSION."""
         for junk in ("", None, "junk", "..."):
             self.assertEqual((0, 0, 0, 0), self.parse(junk), junk)
+
+
+class TestBundledData(unittest.TestCase):
+    """What --add-data carries, checked without running a build.
+
+    A path that stopped existing would otherwise surface as a PyInstaller
+    warning in a log nobody reads, and then as a missing file at runtime on
+    somebody else's machine.
+    """
+
+    def files(self):
+        import build
+        return build.data_files()
+
+    def test_every_bundled_file_exists(self):
+        for source, dest in self.files():
+            self.assertTrue(os.path.exists(source), source)
+            self.assertTrue(dest, source)
+
+    def test_the_sets_artifact_is_bundled(self):
+        """Without it `cyno_sets.load()` raises -- correctly: an empty set
+        would declare the whole galaxy clean."""
+        names = [os.path.basename(s) for s, _d in self.files()]
+        self.assertIn("cyno_sets.json", names)
+
+    def test_the_logo_is_bundled_for_the_running_app(self):
+        """It was only ever the source of the .ico; since the window and the
+        taskbar wear it too, the bundle has to contain the file itself."""
+        pairs = [(os.path.basename(s), d) for s, d in self.files()]
+        self.assertIn(("icon.png", "assets"), pairs)
+
+    def test_the_backdrop_is_bundled(self):
+        """The empty window's picture. Unlike the sets artifact this one is
+        not fatal -- `background_pixmap` returns None and the window shows the
+        flat panel it always did -- but a build that quietly drops it looks
+        like the feature was never written."""
+        pairs = [(os.path.basename(s), d) for s, d in self.files()]
+        self.assertIn(("background.png", "assets"), pairs)
+
+    def test_the_backdrops_generator_is_not_bundled(self):
+        """`assets/make_background.py` imports OpenCV, which is not a
+        dependency of the program. Bundling it would drag that in."""
+        names = [os.path.basename(s) for s, _d in self.files()]
+        self.assertNotIn("make_background.py", names)
+
+
+class TestRebuildKeepsTheCache(unittest.TestCase):
+    """A rebuild into a folder somebody has been using must not eat its cache.
+
+    `--dest` replaces the target wholesale, and the cache lives INSIDE it --
+    that is the whole point of `config.cache_dir` (a copy on a stick carries
+    its own answers). Deleting it hands back the same program with its
+    expensive state gone, which is the one thing a build must never do.
+    """
+
+    def setUp(self):
+        import tempfile
+        import build
+        from core import config
+        self.build = build
+        self.folder = config.CACHE_FOLDER
+        self.dest = tempfile.mkdtemp()
+        self.target = os.path.join(self.dest, build.NAME)
+        os.makedirs(os.path.join(self.target, self.folder))
+        with open(os.path.join(self.target, self.folder, "cache.db"), "w") as f:
+            f.write("verdicts")
+
+    def test_the_cache_is_moved_aside_and_named(self):
+        kept = self.build._rescue_cache(self.target)
+        self.assertIsNotNone(kept)
+        self.assertTrue(os.path.isdir(kept))
+        self.assertFalse(os.path.exists(os.path.join(self.target, self.folder)))
+        with open(os.path.join(kept, "cache.db")) as f:
+            self.assertEqual("verdicts", f.read())
+
+    def test_it_survives_the_target_being_deleted(self):
+        """The rescue has to land OUTSIDE the folder about to be removed."""
+        import shutil
+        kept = self.build._rescue_cache(self.target)
+        shutil.rmtree(self.target, ignore_errors=True)
+        self.assertTrue(os.path.exists(os.path.join(kept, "cache.db")))
+
+    def test_no_cache_is_not_an_error(self):
+        """A first build into an empty directory is the normal case."""
+        import shutil
+        shutil.rmtree(os.path.join(self.target, self.folder))
+        self.assertIsNone(self.build._rescue_cache(self.target))
+
+    def test_the_folder_name_is_not_hard_coded_in_the_build(self):
+        """Two copies of the string "cache" is how a build starts deleting
+        data the app is still writing to. Renaming it in one place must move
+        what the build steps around."""
+        from core import config
+        was = config.CACHE_FOLDER
+        try:
+            config.CACHE_FOLDER = "verdicts"
+            os.rename(os.path.join(self.target, was),
+                      os.path.join(self.target, "verdicts"))
+            self.assertIsNotNone(self.build._rescue_cache(self.target))
+        finally:
+            config.CACHE_FOLDER = was
 
 
 if __name__ == "__main__":

@@ -137,7 +137,6 @@ def main(argv=None) -> int:
         cfg["find_industrial"] = False
     if args.all_cyno:
         cfg["stop_at_first"] = False
-    i18n.set_language(cfg.get("lang"))
     sets = cyno_sets.load()
     cache.connect()
 

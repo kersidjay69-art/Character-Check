@@ -21,7 +21,8 @@ one that costs a user's trust to explain).
 A onedir build has no extraction stage at all. It also starts instantly: the
 1.6 s cold start measured on the onefile build WAS the unpacking.
 
-Three things the bundle cannot do without:
+Three things the bundle cannot do without, and one it merely looks poor
+without:
 
   * `sde/cyno_sets.json`. Everything the app knows about cyno modules and the
     hulls that carry them is in that one file; without it the app raises on
@@ -30,6 +31,10 @@ Three things the bundle cannot do without:
     hanging around for its whole life is the bug `main.pyw` exists to avoid.
   * a version resource. An executable with a blank Details tab is a nameless
     unsigned binary, which is a heuristic signal in its own right.
+  * `assets/icon.png`. Bundled since 2026-08-23 because the running app now
+    wears it too, as its window and taskbar icon (`ui/assets.py`) -- it is no
+    longer only the source of the `.ico`. NOT fatal: without it the window
+    falls back to Qt's default and the build still runs.
 """
 from __future__ import annotations
 
@@ -53,6 +58,27 @@ NAME = "CharacterCheck"
 # to the drawn beacon rather than failing: a missing picture must not stop
 # somebody from building the program.
 LOGO = os.path.join(ROOT, "assets", "icon.png")
+
+
+def data_files() -> list:
+    """(source, destination folder) pairs handed to --add-data.
+
+    A function rather than a literal inside `build()` so the suite can check
+    that every one of these files actually exists without running a build.
+
+    `assets/icon.png` appears here AND as `LOGO` above, and that is not a
+    duplication: `LOGO` is the source of the `.ico` compiled into the exe's
+    resources, this entry is the copy the running app loads for its window.
+    Two independent uses of one file.
+
+    `assets/background.png` has one use -- `ui.assets.background_pixmap`. Its
+    generator (`assets/make_background.py`) is deliberately NOT bundled: it
+    imports OpenCV, which is not a dependency of the program.
+    """
+    return [(os.path.join(ROOT, "sde", "cyno_sets.json"), "sde"),
+            (LOGO, "assets"),
+            (os.path.join(ROOT, "assets", "background.png"), "assets")]
+
 
 # Qt modules PySide6 ships that this app never imports. PyInstaller's hook is
 # generous by default, and these are the expensive ones -- WebEngine alone is
@@ -350,6 +376,32 @@ def report_bootloader() -> str:
     return status
 
 
+def _rescue_cache(target: str) -> str | None:
+    """Move an existing build's cache out of the way. Returns where it went.
+
+    ⚠️ `--dest` replaces the target folder wholesale, and a folder somebody has
+    been running the app from contains `cache/` -- the killboard verdicts.
+    CLAUDE.md calls that the one thing in this project that is expensive to
+    rebuild, which is precisely why `config.cache_dir` puts it beside the
+    executable instead of in %APPDATA%. A rebuild that deleted it would throw
+    away the answers and give back the same program.
+
+    Measured on the real folder this was found in: 81 pilots, 1964 findings.
+
+    It is moved rather than copied: the same filesystem, so it is a rename,
+    and a 56 MB cache would otherwise be duplicated on every build.
+    """
+    from core import config
+    cache = os.path.join(target, config.CACHE_FOLDER)
+    if not os.path.isdir(cache):
+        return None
+    aside = os.path.join(os.path.dirname(target),
+                         "." + config.CACHE_FOLDER + ".carry")
+    shutil.rmtree(aside, ignore_errors=True)
+    shutil.move(cache, aside)
+    return aside
+
+
 def build(dest: str | None, onefile: bool = False) -> int:
     work = os.path.join(ROOT, "build")
     dist = os.path.join(ROOT, "dist")
@@ -368,11 +420,14 @@ def build(dest: str | None, onefile: bool = False) -> int:
            # UPX-packed binary is flagged by a dozen engines rather than one.
            "--noupx",
            "--distpath", dist, "--workpath", work,
-           "--specpath", work,
-           # Separator is ';' on Windows, ':' elsewhere.
-           "--add-data", "%s%s%s" % (os.path.join(ROOT, "sde",
-                                                  "cyno_sets.json"),
-                                     os.pathsep, "sde")]
+           "--specpath", work]
+    # ⚠️ NOT `for source, dest in ...`: `dest` is this function's parameter,
+    # the "also copy the finished build here" directory. Shadowing it made the
+    # loop leave `dest` set to the last data file's folder, and a plain
+    # `python build.py` then copied 133 MB into `assets/`.
+    for source, folder in data_files():
+        # Separator is ';' on Windows, ':' elsewhere.
+        cmd += ["--add-data", "%s%s%s" % (source, os.pathsep, folder)]
     cmd.append("--onefile" if onefile else "--onedir")
     for mod in EXCLUDES:
         cmd += ["--exclude-module", mod]
@@ -395,8 +450,13 @@ def build(dest: str | None, onefile: bool = False) -> int:
             shutil.copy2(exe, os.path.join(dest, NAME + ".exe"))
         else:
             target = os.path.join(dest, NAME)
+            kept = _rescue_cache(target)
             shutil.rmtree(target, ignore_errors=True)
             shutil.copytree(os.path.join(dist, NAME), target)
+            if kept:
+                from core import config
+                shutil.move(kept, os.path.join(target, config.CACHE_FOLDER))
+                print("cache carried over from the previous build")
         print("copied to", dest)
     return 0
 

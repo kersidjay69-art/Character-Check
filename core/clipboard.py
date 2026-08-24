@@ -5,8 +5,16 @@ that changes when the clipboard changes, so the watcher can poll several times
 a second without ever opening the clipboard and without fighting other apps for
 it. pyperclip does not expose it, which is why there is no dependency here.
 
-Nothing is ever written to the clipboard, and no input is synthesised into the
-game. The copy stays a human action -- CLAUDE.md invariant 2.
+No input is synthesised into the game and nothing is written to the clipboard
+from HERE. The copy stays a human action -- CLAUDE.md invariant 2.
+
+The window does write to it, though: Ctrl+C copies the selected names, and the
+contacts row copies a Discord handle. Both go through Qt, and the watcher
+cannot tell such a write from a paste -- the sequence number simply moves. So
+they announce themselves with `expect()` first, and the watcher swallows the
+echo. Without that, Ctrl+C on a list of pilots starts a fresh scan of those
+same pilots, and copying a handle makes the guard refuse it half a second
+later, in the very label that said "copied".
 """
 from __future__ import annotations
 
@@ -70,6 +78,33 @@ def read_text(retries: int = 5, pause: float = 0.05) -> str | None:
     return None
 
 
+_expected: list[str] = []
+_expected_lock = threading.Lock()
+
+
+def expect(text: str) -> None:
+    """Announce something this app is about to put on the clipboard.
+
+    The next read matching it is consumed instead of being handed on as a
+    paste. A list rather than a single slot because two copies can happen
+    faster than the poll interval; matches are consumed, never accumulated,
+    and anything else the user copies in between clears the queue -- a stale
+    expectation must not eat a real paste an hour later.
+    """
+    with _expected_lock:
+        _expected.append(text)
+
+
+def _was_expected(text: str) -> bool:
+    """True if `text` is our own write. Consumes the expectation."""
+    with _expected_lock:
+        if text in _expected:
+            _expected.remove(text)
+            return True
+        _expected.clear()
+        return False
+
+
 class ClipboardWatcher(threading.Thread):
     """Calls `on_text(text)` whenever the clipboard content changes."""
 
@@ -94,7 +129,10 @@ class ClipboardWatcher(threading.Thread):
                 if seq != self._last_seq:
                     self._last_seq = seq
                     text = read_text()
-                    if text:
+                    # The sequence number is still consumed above: the echo is
+                    # skipped, not deferred, or the next real copy of the same
+                    # text would be skipped too.
+                    if text and not _was_expected(text):
                         self._on_text(text)
             except Exception:
                 log.exception("clipboard poll failed")

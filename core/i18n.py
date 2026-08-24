@@ -1,15 +1,16 @@
-"""Interface text in English and Russian.
+"""Interface text, English only.
 
-    i18n.set_language("ru")
-    i18n.t("btn.rescan")            -> "Проверить буфер"
-    i18n.t("status.unresolved", 3)  -> "не найдено в ESI: 3"
+    i18n.t("btn.expand")            -> "Expand"
+    i18n.t("status.unresolved", 3)  -> "not found in ESI: 3"
 
-English is the default: the project is published on GitHub and most of the
-people who find it there do not read Russian. The choice lives in
-`config.lang` next to `theme`.
+Keys rather than strings, so a caption is written once and the console and the
+window cannot disagree about it. Qt-free on purpose: `core/console.py` says the
+same sentences as the results window without importing anything from `ui/`.
 
-Qt-free on purpose, so the console speaks the same language as the window and
-neither owns the strings.
+There was a Russian table here until 2026-08-23. It was removed on request --
+the project is published on GitHub, the documentation is English, and a second
+table is a second thing to keep in step. `README.ru.md` stays: that is
+documentation for players, not interface text.
 
 What is deliberately NOT here, and must never be added:
 
@@ -21,14 +22,6 @@ What is deliberately NOT here, and must never be added:
 * Log messages and zKillboard URLs.
 """
 from __future__ import annotations
-
-import threading
-
-DEFAULT = "en"
-LANGUAGES = ("en", "ru")
-
-_lock = threading.Lock()
-_lang = DEFAULT
 
 EN = {
     # --- verdict levels ------------------------------------------------
@@ -66,7 +59,10 @@ EN = {
     "status.unresolved": "not found in ESI: %d",
     "btn.rescan": "Check clipboard",
     "btn.expand": "Expand",
+    "btn.expand_tip": "Open the evidence under every pilot",
     "btn.collapse": "Collapse",
+    "btn.collapse_tip": "Close every pilot's evidence",
+    "btn.clear": "Clear",
     "btn.filters": "Search filters",
     "filter.potential": "Potential cyno -- hulls with no module",
     "filter.industrial": "Industrial cyno",
@@ -79,12 +75,20 @@ EN = {
                       "paints over everything,\nso this only helps in "
                       "windowed or borderless mode.",
     "action.copy_names": "Copy names",
+    "hint.no_contact": "requests go out unsigned",
+    "hint.no_contact_tip": "No chat logs found and «contact» is empty, so "
+                           "requests are signed with nobody's name.\n"
+                           "Put your character or handle in «contact» in %s",
     "hint.bottom": "double-click opens the pilot or the killmail on "
                    "zKillboard   ·   Ctrl+C copies the selected names",
     "tip.pilot": "%s   ·   double-click to open on zKillboard",
     "tip.checked": "%s   ·   from the cache, checked %s   ·   "
                    "double-click to open on zKillboard",
     "tip.killmail": "Double-click to open the killmail",
+    "tip.rescan": "Check the names in the clipboard now",
+    "tip.clear": "Empty the list and go back to waiting",
+    "tip.count": "pilots whose verdict is: %s",
+    "tip.opacity": "See through this window -- useful with EVE beside it",
 
     # --- tray ----------------------------------------------------------
     "tray.show": "Show results",
@@ -92,15 +96,33 @@ EN = {
     "tray.about": "About",
     "tray.settings": "Open the settings file",
     "tray.quit": "Quit",
-    "tray.no_contact": "No chat logs found -- put yourself in «contact» so\n"
-                       "requests are signed with your name instead of nobody's.\n",
 
     # --- about ---------------------------------------------------------
     "about.title": "About",
     "about.version": "version %s   ·   %s",
     "about.contact": "Contact the author",
     "about.close": "Close",
-    "about.copied": "About -- copied: %s",
+    "about.close_tip": "Close this window",
+    "about.disclaimer":
+        "This tool reads public data only: the clipboard, chat log headers, "
+        "ESI and zKillboard. It is not affiliated with CCP hf and is not "
+        "endorsed by them -- CCP endorses no third-party application. EVE "
+        "Online and all related material are the property of CCP hf.\n\n"
+        "Distributed under the Apache 2.0 licence, with no warranty of any "
+        "kind. Whoever runs the program answers for how it is used.",
+
+    # --- the author's contacts -------------------------------------------
+    # The handles themselves are NOT here: they live in ui/about.py and
+    # nowhere else (invariant 7). These are only the captions around them.
+    # Short captions on purpose -- a caption carrying the handle itself
+    # set the window's minimum width at ~455 px. The handle is in the tooltip.
+    "contact.discord": "Discord",
+    "contact.telegram": "Telegram",
+    "contact.eve": "EVE",
+    "contact.tip_discord": "Copy the author's Discord handle -- %s",
+    "contact.tip_telegram": "Open the author's Telegram in a browser -- %s",
+    "contact.tip_eve": "Open the author's character on zKillboard -- %s",
+    "contact.copied": "copied: %s",
 
     # --- console -------------------------------------------------------
     "console.desc": "Character Check (console)",
@@ -128,6 +150,7 @@ EN = {
                        "Ctrl+C to quit.\n",
     "console.exit": "\nexit",
     "main.no_tray": "No system tray available. Use python -m core.console",
+    "main.already_running": "Character Check is already running -- the window of the copy that was already there has been raised.",
 
     # --- why a paste was refused ---------------------------------------
     "reason.empty": "empty",
@@ -141,139 +164,15 @@ EN = {
     "reason.no_name_resolved": "no name resolved to a character",
 }
 
-RU = {
-    "level.cyno": "ЦИНО",
-    "level.hull": "цино-хулл",
-    "level.indy": "индастриал",
-    "level.seen": "замечен",
-    "level.none": "чисто",
-
-    "kind.fitted": "цино в хай-слоте",
-    "kind.cargo": "цино в трюме",
-    "kind.hull_lost": "погиб на цино-хулле",
-    "kind.hull_flown": "летал на цино-хулле",
-
-    "short.fitted": "в фите",
-    "short.cargo": "в трюме",
-    "short.hull_lost": "потерян",
-    "short.hull_flown": "летал",
-
-    "status.idle": "скопируйте список локала в игре — "
-                   "клик по нику, Ctrl+A, Ctrl+C",
-    "status.resolving": "ищу %d имён…",
-    "status.scanning": "проверяю %d пилотов…",
-    "status.progress": "проверено %d из %d",
-    "status.rejected": "пропущено: %s",
-    "status.own": "свои: ",
-    "status.unresolved": "не найдено в ESI: %d",
-    "btn.rescan": "Проверить буфер",
-    "btn.expand": "Развернуть",
-    "btn.collapse": "Свернуть",
-    "btn.filters": "Фильтры поиска",
-    "filter.potential": "Потенциальное цино — хулл без модуля",
-    "filter.industrial": "Индастриал цино",
-    "filter.stop_first": "Останавливаться на первом боевом цино",
-    "filter.tip": "Что искать. Пока «потенциальное цино» выключено, скан\n"
-                  "делает один запрос на пилота вместо двух: улики на модуль\n"
-                  "бывают только на собственных лоссах пилота.",
-    "btn.on_top": "Поверх окон",
-    "btn.on_top_tip": "Держать окно поверх других. EVE в полноэкранном режиме "
-                      "перекрывает всё,\nтак что это помогает только в "
-                      "windowed/borderless.",
-    "action.copy_names": "Копировать ники",
-    "hint.bottom": "двойной клик открывает пилота или килмейл на "
-                   "zKillboard   ·   Ctrl+C копирует выделенные ники",
-    "tip.pilot": "%s   ·   двойной клик — открыть на zKillboard",
-    "tip.checked": "%s   ·   из кэша, проверен %s   ·   "
-                   "двойной клик — открыть на zKillboard",
-    "tip.killmail": "Двойной клик — открыть килмейл",
-
-    "tray.show": "Показать результаты",
-    "tray.rescan": "Проверить буфер обмена",
-    "tray.about": "О программе",
-    "tray.settings": "Открыть файл настроек",
-    "tray.quit": "Выход",
-    "tray.no_contact": "Чатлоги не найдены — впишите себя в «contact», чтобы\n"
-                       "запросы были подписаны вашим именем, а не анонимными.\n",
-
-    "about.title": "О программе",
-    "about.version": "версия %s   ·   %s",
-    "about.contact": "Связаться с автором",
-    "about.close": "Закрыть",
-    "about.copied": "О программе — скопировано: %s",
-
-    "console.desc": "Character Check (консоль)",
-    "console.arg_once": "проверить текст из файла и выйти (для тестов)",
-    "console.skipped": "[пропуск] %s",
-    "console.scanned": "\n=== просканировано %d пилотов за %.1f с ===",
-    "console.own_in_list": "свои персонажи в списке: %s",
-    "console.not_found": "не найдены в ESI (%d): %s",
-    "console.nothing": "Цино не найдено.",
-    "console.cached": " [из кэша]",
-    "console.modules": "           модули: %s",
-    "console.clean": "\nчисто: %s",
-    "console.errors": "\nошибки у %d пилотов (первая: %s)",
-    "console.sets_built": "Наборы цино собраны %s: %d модулей, %d хуллов",
-    "console.own_chars": "Свои персонажи из чатлогов: %d%s",
-    "console.cache": "Кэш: %s",
-    "console.filters": "Ищем: %s",
-    "console.arg_potential": "помечать и цино-способные хуллы без модуля",
-    "console.arg_no_industrial": "не считать индустриальный цино-модуль",
-    "console.arg_all_cyno": "читать все страницы, не останавливаться на первом боевом цино",
-    "console.no_contact": "ВНИМАНИЕ: чатлоги не найдены, и «contact» не заполнен — запросы\n"
-                          "          уйдут неподписанными. Впишите себя в %s\n",
-    "console.waiting": "\nЖду буфер обмена. Скопируйте список локала (Ctrl+A, "
-                       "Ctrl+C в\nсписке участников) или один ник. "
-                       "Ctrl+C для выхода.\n",
-    "console.exit": "\nвыход",
-    "main.no_tray": "Системный трей недоступен. Используйте python -m core.console",
-
-    "reason.empty": "пусто",
-    "reason.too_long": "слишком длинно (%d символов)",
-    "reason.tabs": "есть табуляции (это D-Scan или инвентарь, не имена)",
-    "reason.url": "есть ссылка",
-    "reason.empty_after_normalise": "после очистки ничего не осталось",
-    "reason.too_many_lines": "слишком много строк (%d)",
-    "reason.only_own": "только ваши собственные персонажи",
-    "reason.mask_ratio": "на имена похожи только %d строк из %d",
-    "reason.no_name_resolved": "ни одно имя не нашлось в ESI",
-}
-
-TABLES = {"en": EN, "ru": RU}
-
-
-def set_language(lang: str | None) -> str:
-    """Switch the active language. Anything unknown falls back to English."""
-    global _lang
-    with _lock:
-        _lang = lang if lang in TABLES else DEFAULT
-        return _lang
-
-
-def language() -> str:
-    return _lang
 
 
 def t(key: str, *args) -> str:
-    """Look a key up in the active language, then in English, then give up.
+    """Look a key up. Never raises.
 
-    Never raises: a missing key returns the key itself, which shows up in the
-    interface as an obvious `btn.rescan` rather than an empty button. A bad
-    format string does the same instead of taking the window down.
+    A missing key returns the key itself, which shows up in the interface as
+    an obvious `btn.expand` rather than an empty button. A bad format string
+    does the same instead of taking the window down.
     """
-    text = TABLES.get(_lang, EN).get(key) or EN.get(key)
-    if text is None:
-        return key
-    if not args:
-        return text
-    try:
-        return text % args
-    except (TypeError, ValueError):
-        return text
-
-
-def en(key: str, *args) -> str:
-    """The English text regardless of the active language -- for logs."""
     text = EN.get(key)
     if text is None:
         return key

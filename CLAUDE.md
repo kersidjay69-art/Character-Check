@@ -14,9 +14,12 @@ python -m core.console --once F --show-clean --no-cache -v
 python -m core.console --once F --potential  # filters: see "What is searched for"
 python -m core.console --once F --no-industrial --all-cyno
 python sde/build_cyno_sets.py                # rebuild the cyno sets from the SDE
-python -m unittest discover -s tests         # 287 tests, none touching the network
+python assets/make_background.py SRC.jfif    # rebuild assets/background.png (needs cv2)
+python stats/collect.py                      # snapshot GitHub traffic -> stats/*.csv
+python -m unittest discover -s tests         # 351 tests, none touching the network
 python build.py --dest "C:/somewhere"        # build -> dist/CharacterCheck/
 python build.py --onefile                    # one file instead of a folder
+python build_pynsist.py                      # the antivirus EXPERIMENT, not the build
 ```
 
 Settings, icons and `app.log` live in `%APPDATA%\CharacterCheck\`
@@ -59,7 +62,25 @@ argument "self-extraction looks like a dropper" sounds convincing and turned
 out not to be what engines look at. What onedir really bought is 0.71 s instead
 of 1.6 s, and that alone justifies the default.
 
-Four things the build breaks quietly without:
+⚠️ **Neither did changing the packager, and that is the third measured failure
+— stop proposing packaging changes.** `build_pynsist.py` exists as a recorded
+experiment: a pynsist build carries **0 of 5** slices of the PyInstaller
+bootloader (ours carries 5 of 5), and on VirusTotal the same day it scored
+**1/69 against our 2/71** — the one engine it removed was SecureAge, while
+Microsoft flagged **both** files `Trojan:Win32/Wacatac.C!ml`. Defender is the
+engine that matters and the bootloader bytes are not what it reacts to.
+
+⚠️ **And a detection count is not evidence on its own.** Between 2026-08-20 and
+2026-08-24 the count stayed at 2 while not one engine stayed the same: Bkav Pro
+and Zillya both report Undetected now, Microsoft and SecureAge did not flag us
+then. Verdicts drift with engine-roster updates, so a comparison is only worth
+anything when both files are measured on the same day and the **engines are
+named**. Three hypotheses have now been tested — distribution format,
+bootloader bytes, packager — and all three were wrong. The variable is not how
+the Python gets into the PE; the remaining lever is a signature.
+
+Four things the build breaks quietly without, and one that only makes it
+look poor:
 
 **`sde/cyno_sets.json` must reach the bundle** (`--add-data`). Without it
 `cyno_sets.load()` raises — and that is correct: an empty set would declare the
@@ -68,16 +89,26 @@ whole galaxy clean. The artifact path asks `sys._MEIPASS` directly
 directories up lands in the same place today, but that is a detail of how
 PyInstaller names frozen modules, not a contract.
 
+**`assets/icon.png` must reach the bundle too**, and since 2026-08-23 it does.
+It has two independent uses: `build.LOGO` scales it into the `.ico` compiled
+into the exe's resources, and `ui/assets.py` loads the file itself for the
+window and taskbar icon. Both paths come from `build.data_files()`, which the
+suite checks without running a build. ⚠️ Unlike the sets artifact this one is
+**not fatal**: without it the window falls back to Qt's default icon and the
+topbar simply has no logo.
+
 **`--windowed` means `sys.stderr` is `None`.** A plain `logging.basicConfig()`
 would set up a `StreamHandler(None)` and the first warning would take the app
 down. `main._start_logging` writes to `%APPDATA%\CharacterCheck\app.log` in
 that case. From source it behaves as before, on the console.
 
-**The exe icon is `assets/icon.png`**, the only binary asset in the repository.
-Until 2026-08-23 it was drawn by code too (the beacon from `ui.tray._icon`) and
+**The exe icon is `assets/icon.png`**, one of the repository's two binary
+assets (the other is `assets/background.png`, see the GUI section). Until
+2026-08-23 the icon was drawn by code too (the beacon from `ui.tray._icon`) and
 the "nothing binary in the repository" rule held completely; the user supplied
-a finished logo, and artwork cannot be derived from code. Everything else is
-still drawn: the tray icon, the header glyphs (`ui/glyphs.py`), the tier wedge.
+a finished logo, and artwork cannot be derived from code. Everything that is
+not artwork is still drawn: the tray icon, the header glyphs
+(`ui/glyphs.py`), the tier wedge.
 
 ⚠️ If the file is missing the build **does not fail**, it falls back to the
 drawn beacon (`build._logo_png` returns `None`). A missing picture is no reason
@@ -91,13 +122,23 @@ single downscaled bitmap looks soft in at least two of the three.
 ⚠️ **At 16 and 24 px this logo is unreadable** — the dense radar dial becomes
 an orange blob and only the circle is distinguishable. From 32 px up it is
 fine. Checked by eye on light and dark backgrounds. The only fix is a different
-picture for the small sizes, not code.
+picture for the small sizes, not code. The 22 px copy in the window's topbar
+(`styles.LOGO_H`) is inside that band deliberately: there it is decoration
+beside the product name, not something anyone has to read.
 
 ⚠️ The source image arrived **with no alpha channel**: its transparency was a
 checkerboard painted into the pixels (a typical Gemini export). Colour keying
 is impossible — the checkerboard grey matches grey on the ship's hull (found at
-a radius of 12 px from the centre). So it is cut geometrically: a circle with a
-soft edge, opaque to r=308, transparent from r=320, at a crop radius of 327.
+a radius of 12 px from the centre). So it was cut geometrically: a circle with
+a soft edge, opaque to r=308, transparent from r=320, at a crop radius of 327.
+
+⚠️ **That cut has already been applied and the committed file carries it** —
+`assets/icon.png` is colour type 6 (RGBA), corners at alpha 0, centre at 255,
+verified by decoding the PNG. `build._logo_png` only scales, and `ui/assets`
+only scales. **Do not cut a circle again at load time**: it would round the
+artwork twice and eat the outer ring of the dial. `tests/test_assets_and_
+clipboard.py` asserts the colour type, so a re-export without alpha fails
+loudly rather than shipping a checkerboard.
 
 **The version resource is generated** (`build.make_version_file`) from
 `core.config` — it is not a file kept by hand. Before 2026-08-20 there was none
@@ -220,22 +261,26 @@ core/            Qt-free core (invariant 1)
   clipboard.py   ctypes, GetClipboardSequenceNumber
   esi.py         POST /universe/ids/ -- and the guard's final arbiter
   icons.py       type icons from images.evetech.net, disk cache + misses
-  i18n.py        EN/RU, keys rather than strings; EN by default
+  i18n.py        English only, keys rather than strings
   zkb.py         zKillboard REST, pagination
   ratelimit.py   token bucket, 8 req/s
   http.py        one shared keep-alive session
   cache.py       SQLite: verdicts and evidence
   scan.py        the orchestrator
   console.py     running without Qt
-assets/          icon.png -- the only binary asset (the exe logo)
+assets/          icon.png (exe AND window logo), background.png (idle window)
+  make_background.py  the backdrop's generator -- needs cv2, never imported
 sde/             build_cyno_sets.py -> cyno_sets.json (artifact, committed)
+stats/           collect.py -> traffic/download CSVs (data gitignored)
 ui/              Qt lives only here
   styles.py      palette and QSS -- the same as Jump Planner's
-  tray.py        tray icon, scan thread, notifications
+  tray.py        tray icon and the scan thread (no notifications)
   results_window.py  result tree, expansion into evidence, icon delegate
   icon_cache.py  PNG -> QPixmap, fetching off the GUI thread, icon_ready
-  glyphs.py      chevron, pin, funnel -- drawn, not shipped as files
+  glyphs.py      chevron, pin, funnel, refresh, bin -- drawn, not files
   about.py       the author's contacts -- the only place (invariant 7)
+  assets.py      loads the two PNGs at runtime, frozen or not
+  single_instance.py  QLocalServer guard: one copy at a time
 tests/           fixtures are real logs and real local pastes
 ```
 
@@ -444,6 +489,14 @@ must never appear in `core/`, where all the networking is.
 `DEFAULTS["contact"]` must stay empty: a name written there would sign somebody
 else's traffic. Enforced by `tests/test_distribution.py`.
 
+⚠️ The window's contacts footer shows the same three handles and **imports**
+them from `ui/about.py` — it does not retype them. The test reads the five
+constants out of that file with `ast`, so they must stay module-level
+`NAME = "literal"` assignments: an f-string or a tuple unpack loses them and
+the check quietly stops checking. The rule is textual and blunt on purpose —
+even a handle in a *comment* under `core/` fails, because an example is
+indistinguishable from a use.
+
 ## Three traps in the classification
 
 Each was found in real data and closed by a named test.
@@ -547,12 +600,30 @@ deleted forever while the file never shrank.
 
 ## GUI
 
-The styling is taken from `f:/123/Jump planer/ui/styles.py` one for one: the
-same dark palette (`BG_DEEP #0c0c0e`, `BG_PANEL #17171a`, `BORDER #32323a`,
-`ACCENT #4fc3f7`, `TEXT #d4d4d8`), the same Segoe UI, the same object names
-(`topbar`, `title`, `dim`, `primary`) and the same faction theme presets
-(`config.theme`). Rules for `QTreeWidget` were added — Jump Planner styles only
-tables and lists, whereas here the whole window is a tree.
+The greys are taken from `f:/123/Jump planer/ui/styles.py` one for one
+(`BG_DEEP #0c0c0e`, `BG_PANEL #17171a`, `BORDER #32323a`, `TEXT #d4d4d8`),
+along with the same Segoe UI, the same object names (`topbar`, `title`, `dim`,
+`primary`) and the same faction theme presets (`config.theme`). Rules for
+`QTreeWidget` were added — Jump Planner styles only tables and lists, whereas
+here the whole window is a tree.
+
+**The accent is the project's own**, not Jump Planner's: `ACCENT #ff944d`, the
+amber of the logo. It was picked by measurement rather than by eye — contrast
+**8.2:1** against `BG_PANEL` (the old `#4fc3f7` managed 8.9), and hue distances
+of 22.9° from `RED` (`cyno`), 19.6° from `YELLOW` (`hull`) and 11.8° from
+`ORANGE` (the Tech II wedge). All three of those carry meaning and cannot move,
+so if a future accent measures closer, the accent is what moves.
+
+⚠️ **It has to be set in two places** — the module constant `ACCENT` *and* the
+`default` entry of `THEME_PRESETS`. `apply_theme` overwrites the constant at
+startup, but `build._beacon_png` reads it at **build time with `apply_theme`
+never called**, so changing only the preset ships an executable whose icon is
+still the old colour.
+
+⚠️ The tray beacon is drawn in `ACCENT` when idle and recoloured to the
+verdict's colour after a scan, so idle amber stands next to `hull` yellow at
+16 px. They were rendered side by side and do read apart. If a future accent
+does not, the fix is a neutral grey idle beacon, never a bent verdict colour.
 
 A pilot's row is **name, module icons, ship icons**, all on one line with no
 header: three column titles said nothing the icons do not. The expansion works
@@ -587,21 +658,36 @@ live in a 30-pixel row, and the four spare pixels read on screen as gaps
 between rows. A test holds `IconRowDelegate.cell == ROW_H`: they would drift
 apart silently.
 
-**The minimum window width is 230 px.** It was 516 — Qt derives a window's
-minimum from its layout, and a QLabel reports the full width of its text, so
-the title, the bottom hint and the "Check clipboard" button were setting the
-floor between them. `ResultsWindow._let_it_shrink` gives those three an
-`Ignored` horizontal policy so they can be squeezed and clipped; the tree,
-which is what the window is for, shrinks happily.
+**The minimum window width is 318 px, and it is the contacts row that sets
+it** (measured 2026-08-23: footer 318, topbar 283). It was 516, then 230, and
+the 230 was never real — see below.
 
-⚠️ Below roughly 350 px the title and the "Check clipboard" button are squeezed
-out entirely. Rescanning is still available from the tray menu. That is the
-price of the halving and it was accepted deliberately.
+Qt derives a window's minimum from its layout and a QLabel reports the full
+width of its text, so the title and the bottom hint were setting the floor
+between them. `ResultsWindow._let_it_shrink` lets those two be squeezed and
+clipped; the tree, which is what the window is for, shrinks happily.
 
-⚠️ The saved-geometry sanity check in `_restore_geometry` was halved to match
-(400 → 200). Refusing to restore a rectangle the user is allowed to drag to
-would snap the window back to 1000×660 on every launch, which reads as "it
-forgot".
+⚠️ **`_let_it_shrink` was wrong from the day it was written, and the symptom
+was not what it looked like.** It set an `Ignored` horizontal policy with a
+minimum of 0. Ignored does not mean "use the hint when there is room" — it
+means the hint is *discarded*, so beside a `addStretch(1)` the widget gets
+nothing at all. The title, the bottom hint and the old "Check clipboard"
+button were **0 px wide at every window size**, permanently invisible. It read
+as "below 350 px they get squeezed out", and it was documented that way here,
+because nobody measured a wide window. The user's "bring the Check clipboard
+button back" was this.
+
+The fix is `Preferred` plus a minimum of **one** pixel. Not zero: `qSmartMinSize`
+only honours an explicit minimum when it is greater than zero, so a minimum of
+0 is silently ignored and the label's own hint becomes the floor again. Held by
+`test_ui_window.TestMinimumWidth`, which checks both halves — visible when
+there is room, shrinkable when there is not.
+
+⚠️ The saved-geometry sanity check in `_restore_geometry` stays at 200 even
+though the layout minimum is now 318. It answers "is this saved rectangle
+absurd", not "does the layout fit": Qt clamps a too-small rectangle up to the
+layout minimum by itself, and raising the check would start refusing
+rectangles the app itself produced.
 
 Order within a row is by decreasing danger. Modules: covert, regular,
 industrial (`_MODULE_RANK`, not by type_id — 21096 sorts before 28646 and that
@@ -633,9 +719,28 @@ says what the number means. The "N pilots in X s" line is gone; everything that
 used to live under the title (scanning…, guard refusal, own characters, not
 found in ESI) moved to the hint at the bottom.
 
-The buttons are glyphs drawn in `ui/glyphs.py`: chevron down/up, a pin and a
-funnel. Not files and not text "▼"/"📌" — those depend on whichever font
-Windows substitutes and take no palette colour. Their captions became tooltips.
+The buttons are glyphs drawn in `ui/glyphs.py`: chevron down/up, a pin, a
+funnel, a circular refresh arrow and a waste bin. Not files and not text
+"▼"/"📌" — those depend on whichever font Windows substitutes and take no
+palette colour. Their captions became tooltips.
+
+**Two of the six are square and framed** (`#square_btn`, 28 px), the other four
+borderless (`#icon_btn`, 26 px), and the split is not decoration: refresh and
+clear *do* something, the rest only change what is already on screen. An action
+should look like a button rather than a mark floating in the bar. Refresh is
+drawn in `ACCENT` and clear in `TEXT_DIM` — emptying the list is not what
+anyone should reach for first, and the colour is the whole ranking. There is
+no `#primary` text button in the topbar any more; the rule survives for the
+About dialog's Close.
+
+**Every button and every header number carries a tooltip**, all of them set in
+`_label_widgets()`. A glyph with no tooltip is an unexplained shape.
+⚠️ The count labels get theirs from `_count_tip(level)` because **two** places
+set it — `_label_widgets` once and `_set_counts` on every update. Two copies of
+the format string is how they drift.
+⚠️ Do **not** add tooltips to the tray menu's `QAction`s. Qt does not show them
+inside a `QMenu` without `setToolTipsVisible(True)`, and even then they would
+only repeat the item's own text.
 
 ⚠️ The pin had to be redrawn: the first version (a flat head and a body
 tapering downward) read at 16 px as a **funnel**, and a funnel in a toolbar
@@ -686,10 +791,151 @@ exactly one icon. Jump Planner solves the same problem with a row of `QLabel`s
 in a `QHBoxLayout` — fine for one widget and far too heavy for a tree several
 hundred rows long.
 
+**Two delegate instances, one per icon column, differing only in the gap.**
+Ships sit at `GAP_TIGHT = 0` and modules stay at `GAP = 4`. ⚠️ The module gap
+can never go below `2 * BORDER`: each module is framed in a 2 px colour and
+two frames touching read as one wide box. Ships carry no frame, so nothing has
+to hold them apart — and `INSET` still leaves 6 px of air between neighbouring
+artwork, which is why zero is not "no space". The ships column now fits
+`(W-3)/30` icons instead of `/34`, about 13% more hulls per row.
+
+⚠️ `_on_icon_ready` must call `forget()` on **both** delegates. Each keeps its
+own scaled-pixmap cache, and the one that was not told would go on drawing the
+old scale forever. `width_for(count, gap)` grew the same parameter; the
+inclusive-`right()` `+1` is tested at both gaps, because that is the pixel that
+silently turns the last icon into a "+1".
+
 `main.py` → `ui/tray.py`. Scanning happens in a `QThread`, the clipboard is
 watched by a thread from `core.clipboard`, and hand-off is by Qt signal; the
 GUI thread only draws. Closing the window hides it to the tray rather than
 ending the process.
+
+**There are no notifications.** Two `showMessage` balloons and a
+`winsound.MessageBeep` were removed on 2026-08-23 on request, and `sound` left
+`config.DEFAULTS` with them. What announces a finding now is the window coming
+up plus the tray icon taking the verdict's colour — and that is the whole of
+it.
+
+⚠️ **The price is real and was accepted knowingly:** neither signal reaches a
+user with EVE in fullscreen, which paints over everything. The beep was the one
+that did. Do not file this as a regression; do not re-add it without being
+asked.
+
+The startup warning about unsigned requests was the other balloon, and it did
+not simply vanish — it became `ResultsWindow.set_notice()`, a standing line
+beside the hint that `TrayApp` clears after the first accepted scan. Startup
+advice, not live state: repeating it under every scan is the nagging the
+balloon was removed to stop, and dropping it silently would lose the one place
+the user is told the setting exists. About still says it permanently, in the
+User-Agent line.
+
+**The contacts row at the foot of the window** (`#footer`) holds Discord,
+Telegram and EVE. The handles come from `ui/about.py` **by import**, which is
+invariant 7 enforced by the language instead of by convention. Captions are
+short and the handle is in the tooltip: three captions of the
+`Discord: kersid_jay` form put the window's minimum width at ~455 px against
+318 as built.
+
+⚠️ **`core.clipboard.expect()` is not optional for anything that writes to the
+clipboard.** The watcher polls `GetClipboardSequenceNumber` and cannot tell our
+own write from a paste, so a copied Discord handle came straight back as a scan
+— the guard refuses it and the refusal lands in the very label that just said
+"copied". The same hole meant **Ctrl+C on selected pilots restarted a scan of
+those exact pilots**; that was a live bug in 0.1, found while building the
+contacts row.
+
+**The idle window shows a picture, not a flat rectangle.**
+`assets/background.png` is painted behind the results tree **only while the
+list is empty**. It is 720×1456, 973 KB, and it is produced by
+`assets/make_background.py` from the source artwork — a committed generator
+beside a committed artifact, the same pattern as `sde/build_cyno_sets.py`.
+⚠️ That script imports OpenCV and numpy. It is run by hand, is never imported
+by the app, and is deliberately **not** in `build.data_files()`;
+`requirements.txt` stays `requests` + `PySide6`. Same rule as `pyinstaller`: a
+tool, not a dependency.
+
+The dimming is baked into the file rather than composited at runtime, so a
+repaint is a blit. The denoise is luma 3 / chroma 10, not symmetrical: the
+artefact on this picture is red/green speckle in the empty sky, while the
+subject is thin bright lines and faint stars that heavier luma smoothing eats.
+
+⚠️ **The picture is stored portrait and uncropped, because that is how the
+window is used.** `config.window_rect` on the real installation is 552×1374 — a
+viewport of about 538×1260, aspect 0.434, against the artwork's 0.495. The
+first version stored a landscape band cropped around the planet, chosen from
+renders at 900×560, and in the actual window it came out magnified about 2.6×:
+one huge soft fragment of a planet's limb. **Judge this asset at the saved
+geometry, not at whatever size a test harness opens.** A landscape window now
+shows the lower half of the station and the dial, which is a fair trade for a
+layout nobody uses.
+
+⚠️ **The tree's QSS background had to become `transparent`.** The backdrop is
+painted from an event filter on `tree.viewport()`, which runs *before* the
+widget handles the paint event — so a background declared in the QSS belongs to
+the widget, is painted afterwards, and covers the picture completely. The
+filter therefore fills the opaque base colour itself and returns `False` so the
+tree still draws its rows. That base fill is also what keeps
+`test_ui_window.TestBackground` honest rather than accidentally passing.
+
+⚠️ **Only when empty**, and that is the feature rather than a limitation: a
+pilot's name carries the verdict in its colour, and a name must never be read
+against artwork. Nothing in the window watches the row count — the model's own
+repaint redraws the viewport, which is why Clear brings the picture back with
+no wiring at all. A first version toggled `alternatingRowColors` on emptiness,
+on the theory that QTreeView carries its stripes down past the last row.
+**Measured: it does not.** The mechanism was deleted rather than kept with an
+invented justification.
+
+**The window can be made see-through** — a slider in the footer, 50–100%,
+`setWindowOpacity`. Taken from PySpy, which sits beside the game client the
+same way. ⚠️ Clamped at 50 on write *and* on read: opacity applies to text too,
+and below roughly half the pilot names stop being readable, so a hand-edited
+`0` in `config.json` must not be able to produce an invisible window. Saved on
+`sliderReleased`, not on `valueChanged` — a drag would otherwise write
+`config.json` forty times.
+
+⚠️ The slider must be `setMaximumWidth`, never `setFixedWidth`: a fixed 90 px
+pushed the window's minimum width from 318 to 420. `TestMinimumWidth` caught
+it, which is the second defect that test has caught since it was written for
+a different one.
+
+**Only one copy of the app runs at a time** (`ui/single_instance.py`). Not
+tidiness: `core.http.ZKB_CONCURRENCY` is 8 and is a constant rather than a
+setting because the price of exceeding zKillboard's rate is an IP ban
+(invariant 3) — two instances make it 16 from one address. They would also
+share one SQLite cache, both running `enforce_limit` and
+`PRAGMA incremental_vacuum` against it, and both write `config.json`
+last-writer-wins.
+
+The mechanism is a `QLocalServer` whose name is `"character-check-"` plus a
+sha1 of `config.data_dir()`. Hashed because a Windows pipe name cannot contain
+a backslash; keyed on the data directory so `CC_DATA_DIR` isolates the guard
+exactly as it isolates the cache and the config — the suite cannot collide with
+the user's running app. A second launch writes `b"show"`, the first raises its
+window, the second exits **0**: handing off is a success, not an error.
+
+⚠️ `QLocalServer.removeServer(name)` before `listen()` is not optional. There
+is no atexit hook and no signal handler in this project — `TrayApp._quit` is
+the only clean exit — so one crash leaves the name behind, and without clearing
+it the app would refuse to start ever again. ⚠️ And a `listen()` that fails
+anyway **logs and starts the app**, the same house rule as `config.load` and
+`main._start_logging`: a guard that refuses to run the program is worse than
+what it guards against. `take_or_signal` therefore returns the server even when
+it is not listening, and `TrayApp` must hold it — a garbage-collected server
+stops listening.
+
+⚠️ **Raising the window here is deliberate and differs from a scan.** A scan
+start uses `show()` alone, because taking focus from EVE mid-fight is not
+acceptable. A second launch is the user asking for the window, so it gets
+`raise_()` and `activateWindow()` too. Different event, different answer; do
+not "fix" one to match the other.
+
+⚠️ **The handshake cannot be exercised from one process, and this looks exactly
+like a bug that is not there.** `signal_existing` blocks the calling thread,
+and a server living in that same thread cannot accept a connection while it is
+blocked — so an in-process test watches the handoff report success while the
+callback never fires. `tests/test_single_instance.py` drives the socket by hand
+without blocking; the two-process case was verified with real subprocesses.
 
 **Results arrive as they become available.** `ScanWorker` emits three signals:
 `stage_changed` (the guard accepted, ESI answered), `pilot_ready` (one pilot)
@@ -708,18 +954,31 @@ no `raise_()`, no `activateWindow()`. Taking focus from EVE mid-scan is not
 acceptable. The end of a scan still raises the window, and only if something
 was found.
 
-The interface language is `config.lang`, **`en` by default**: the project is on
-GitHub. The strings live in `core/i18n.py` (Qt-free, so the console speaks the
-same language), and the RU/EN button in the header switches instantly. A trap
-when adding strings: in `_build()` and `_menu()` widgets were created as local
-variables, and `retranslate()` can only change what `self` holds a reference to
-— a new button has to be both stored and listed in `retranslate()`.
-`test_i18n.py` compares the EN and RU key sets and their `%` substitutions: a
-forgotten string otherwise surfaces only for the user.
+**The interface is English only.** There was a Russian table and an RU/EN
+button in the header until 2026-08-23; both were removed on request. The
+project is on GitHub, the documentation is English, and a second table is a
+second thing to keep in step. `README.ru.md` stays — that is documentation for
+players, not interface text. `config.lang` and `config.sound` are gone from
+`DEFAULTS`; a copy left in somebody's `config.json` is simply ignored, because
+`config.load` keeps unknown keys and deleting a user's data to tidy up is a
+favour nobody asked for.
 
-Guard refusal reasons are half-bilingual on purpose: `reason` stays English (it
-goes to the log) while `reason_key` + `reason_args` are what the window
-translates.
+The strings still live in `core/i18n.py` as keys rather than literals — Qt-free,
+so the console says the same sentences as the window and neither owns them.
+`i18n.en()` is gone with the second table; `t()` is the whole API.
+
+⚠️ **`_label_widgets()` is the one place a caption or a tooltip is set.** It
+used to be `retranslate()` and it survived the language removal on purpose: it
+is the only place seven widgets are ever labelled, and having one function
+means the whole tooltip set can be read at a glance instead of trailing three
+lines after each constructor. The old trap survives too — it can only reach
+what `self` holds, so a new button must be stored on `self` **and** listed
+there.
+
+Guard refusal reasons keep their two halves, and the reason is no longer
+language: `reason` is the finished sentence that goes into the log, while
+`reason_key` + `reason_args` let the window build its own line, because it
+puts the refusal in the hint beside other text and needs the pieces.
 
 Window position and size are remembered in `config.window_rect` /
 `window_maximized` and restored at startup — as plain numbers rather than a
@@ -752,12 +1011,42 @@ bar per click. Both cases are covered by tests in `test_ui_geometry.py`.
 help. Keep the game in windowed/borderless, or put the window on a second
 monitor. (An in-game overlay is a separate task and is not done.)
 
+## Releases and their statistics
+
+There is no executable in the repository and there must not be one: a 55 MB
+binary enters git history permanently, and every rebuild adds another 55 MB.
+The exe is published through **Releases**, built by the workflow on a `v*` tag
+— tests, build, provenance attestation, `SHA256SUMS.txt`. Cutting a release is
+therefore one command and nothing else:
+
+```bash
+git tag -a v0.2 -m "..." && git push origin v0.2
+```
+
+⚠️ Without a tag the Releases page is **empty while the README links to it**.
+That was the state for the first hours after publication: the whole pipeline
+existed and had never been triggered.
+
+⚠️ **GitHub's traffic API answers for the last 14 days and then forgets.**
+Views and clones are not a report to be pulled later — they are a measurement
+taken at the time or not at all. `stats/collect.py` takes it daily (a Windows
+scheduled task here) and merges the window into `stats/*.csv` by date. See
+`stats/README.md`; the download counter there is a cumulative total, not a
+daily figure, and counts bots along with people.
+
 ## Status
 
-Phases 1 and 2 are complete: the core, the console, the tray and the results
-window. The project is published at
+Phases 1 through 3.6 are complete: the core, the console, the tray, the results
+window, and the window's own identity (amber accent, the idle backdrop, opacity,
+one instance at a time). The project is published at
 <https://github.com/kersidjay69-art/Character-Check> (invariant 7, `LICENSE`,
-`ui/about.py`), and CI builds the executable from source with provenance.
+`ui/about.py`), and CI builds the executable from source with provenance on
+every `v*` tag. `config.VERSION` is **0.2**.
+
+Three things are settled and must not be reopened without new data: the
+antivirus counter (three measured failures — format, bootloader, packager),
+zKillboard `/stats/` screening (measured; it cannot pay and the cheap version
+lies), and the second interface language (removed on request).
 
 Before starting anything, read **`docs/STATE.md`**: what is done, what is next,
 the open questions and — above all — the list of **abandoned directions**. Each

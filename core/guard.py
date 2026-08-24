@@ -116,13 +116,13 @@ def normalize(text: str) -> list[str]:
 
 
 def _reject(key: str, *args) -> GuardResult:
-    """Refuse the paste, carrying BOTH a translation key and English text.
+    """Refuse the paste, carrying BOTH the formatted text and its key.
 
-    The English string stays because it is what goes into the log, where a
-    Russian message would be worse than useless. The key is what the window
-    translates for the person reading it.
+    `reason` is the finished sentence and goes into the log. `reason_key` plus
+    `reason_args` let the window build its own line -- it puts the refusal in
+    the hint beside other text and needs the pieces, not the sentence.
     """
-    return GuardResult(False, "rejected", (), i18n.en(key, *args),
+    return GuardResult(False, "rejected", (), i18n.t(key, *args),
                        reason_key=key, reason_args=args)
 
 

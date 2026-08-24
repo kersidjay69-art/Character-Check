@@ -1,4 +1,11 @@
-"""The translation tables. The important test is that they agree."""
+"""The interface strings. One table now, English, and the tests changed shape.
+
+Until 2026-08-23 there were two tables and the important test was that they
+agreed -- a key present in one and missing from the other was the whole failure
+mode of a hand-written translation. With one table that class of bug cannot
+happen, so what is left to check is the lookup's promise: it never raises, and
+every level, kind and refusal the code can produce has a label to show.
+"""
 import os
 import re
 import sys
@@ -6,70 +13,41 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import config, i18n  # noqa: E402
+from core import i18n  # noqa: E402
 
 
-class TestTablesAgree(unittest.TestCase):
-    """One forgotten key is the whole failure mode of a hand-written table."""
-
-    def test_both_languages_have_the_same_keys(self):
-        missing_ru = set(i18n.EN) - set(i18n.RU)
-        missing_en = set(i18n.RU) - set(i18n.EN)
-        self.assertEqual(set(), missing_ru, "no Russian for: %s" % missing_ru)
-        self.assertEqual(set(), missing_en, "no English for: %s" % missing_en)
-
-    def test_format_placeholders_match_per_key(self):
-        """A key that takes two numbers in one language must take two in the
-        other, or the switch turns into a crash on the next scan."""
-        spec = re.compile(r"%[-#0-9. +]*[a-zA-Z]")
-        for key, en_text in i18n.EN.items():
-            self.assertEqual(
-                sorted(spec.findall(en_text)),
-                sorted(spec.findall(i18n.RU[key])),
-                "placeholders differ for %r" % key)
-
+class TestTable(unittest.TestCase):
     def test_nothing_is_blank(self):
-        for table, name in ((i18n.EN, "EN"), (i18n.RU, "RU")):
-            for key, text in table.items():
-                self.assertTrue(text.strip(), "%s[%r] is blank" % (name, key))
+        for key, text in i18n.EN.items():
+            self.assertTrue(text.strip(), "EN[%r] is blank" % key)
+
+    def test_no_key_is_left_pointing_at_a_language_switch(self):
+        """The Russian table is gone; nothing may quietly expect it back."""
+        self.assertFalse(hasattr(i18n, "RU"))
+        self.assertFalse(hasattr(i18n, "TABLES"))
+        self.assertFalse(hasattr(i18n, "set_language"))
+
+    def test_every_placeholder_is_one_the_lookup_can_fill(self):
+        """`t()` formats with a plain tuple, so `%(name)s` would always fail.
+
+        This is what is left of the old cross-table placeholder check: the
+        risk was never the letters, it was a format string nobody can satisfy.
+        """
+        named = re.compile(r"%\([^)]*\)")
+        for key, text in i18n.EN.items():
+            self.assertIsNone(named.search(text),
+                              "%r uses a named placeholder" % key)
 
 
 class TestLookup(unittest.TestCase):
-    def setUp(self):
-        self._prev = i18n.language()
-
-    def tearDown(self):
-        i18n.set_language(self._prev)
-
-    def test_default_is_english(self):
-        self.assertEqual("en", i18n.DEFAULT)
-        self.assertEqual("en", config.DEFAULTS["lang"])
-
-    def test_switching_changes_the_answer(self):
-        i18n.set_language("en")
-        self.assertEqual("CYNO", i18n.t("level.cyno"))
-        i18n.set_language("ru")
-        self.assertEqual("ЦИНО", i18n.t("level.cyno"))
-
-    def test_unknown_language_falls_back_to_english(self):
-        self.assertEqual("en", i18n.set_language("klingon"))
-        self.assertEqual("en", i18n.set_language(None))
-
     def test_unknown_key_returns_itself_rather_than_raising(self):
         """A missing key should be visible in the UI, not fatal to it."""
         self.assertEqual("no.such.key", i18n.t("no.such.key"))
         self.assertEqual("no.such.key", i18n.t("no.such.key", 1, 2))
 
     def test_bad_arguments_do_not_raise(self):
-        i18n.set_language("en")
-        self.assertTrue(i18n.t("status.pilots", "not", "numbers"))
-        self.assertTrue(i18n.t("status.pilots"))
-
-    def test_en_helper_ignores_the_active_language(self):
-        """Log lines stay English even when the window is Russian."""
-        i18n.set_language("ru")
-        self.assertEqual("empty", i18n.en("reason.empty"))
-        self.assertEqual("ЦИНО", i18n.t("level.cyno"))
+        self.assertTrue(i18n.t("status.progress", "not", "numbers"))
+        self.assertTrue(i18n.t("status.progress"))
 
     def test_every_level_and_kind_has_a_label(self):
         from core import analyze
@@ -82,7 +60,13 @@ class TestLookup(unittest.TestCase):
 
 
 class TestGuardReasonsAreKeyed(unittest.TestCase):
-    """Refusals must carry a key, or the window cannot translate them."""
+    """Refusals must carry a key as well as a sentence.
+
+    `reason` is the finished line that goes into the log; `reason_key` plus
+    `reason_args` let the window build its own, because it puts the refusal
+    beside other text in the hint. That split survived the language removal --
+    it was never really about language.
+    """
 
     def test_every_rejection_has_a_key_and_english_text(self):
         from core import guard
@@ -96,16 +80,11 @@ class TestGuardReasonsAreKeyed(unittest.TestCase):
             self.assertIn(r.reason_key, i18n.EN, r.reason_key)
             self.assertTrue(r.reason)
 
-    def test_reason_text_stays_english_under_a_russian_ui(self):
+    def test_the_sentence_and_the_key_say_the_same_thing(self):
         from core import guard
-        prev = i18n.language()
-        try:
-            i18n.set_language("ru")
-            r = guard.inspect("")
-            self.assertEqual("empty", r.reason)
-            self.assertEqual("пусто", i18n.t(r.reason_key))
-        finally:
-            i18n.set_language(prev)
+        r = guard.inspect("")
+        self.assertEqual("empty", r.reason)
+        self.assertEqual("empty", i18n.t(r.reason_key))
 
 
 if __name__ == "__main__":

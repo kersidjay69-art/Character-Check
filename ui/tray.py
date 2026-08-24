@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 from core import (analyze, cache, chatlog, clipboard, config, cyno_sets,
                   http, i18n, icons, scan)
 
-from . import styles
+from . import single_instance, styles
 from .about import AboutDialog
 from .results_window import ResultsWindow, level_label
 
@@ -86,9 +86,13 @@ class ScanWorker(QObject):
 class TrayApp(QObject):
     _text_ready = Signal(str)
 
-    def __init__(self, app: QApplication):
+    def __init__(self, app: QApplication, instance_server=None):
         super().__init__()
         self.app = app
+        # Held for the life of the app, not because anything reads it: a
+        # QLocalServer that goes out of scope is collected and stops
+        # listening, and the next launch would then start a second copy.
+        self._instance_server = instance_server
         self.cfg = config.load()
         self.sets = cyno_sets.load()
         cache.connect()
@@ -109,9 +113,7 @@ class TrayApp(QObject):
         threading.Thread(target=self._prefetch_icons, name="cc-icons",
                          daemon=True).start()
 
-        i18n.set_language(self.cfg.get("lang"))
-        self.window = ResultsWindow(self.sets, on_rescan=self.scan_clipboard,
-                                    on_language_changed=self._relabel)
+        self.window = ResultsWindow(self.sets, on_rescan=self.scan_clipboard)
 
         self._thread = QThread()
         self.worker = ScanWorker()
@@ -137,12 +139,20 @@ class TrayApp(QObject):
             poll_ms=int(self.cfg.get("clipboard_poll_ms", 200)))
         self.watcher.start()
 
+        if instance_server is not None:
+            # A second launch asks for the window, and gets it -- raised and
+            # focused. That is deliberately unlike the start of a scan, which
+            # may only `show()`: taking focus away from EVE mid-fight is not
+            # acceptable, but an explicit second launch IS the user asking.
+            single_instance.listen_for_show(instance_server, self._show_window)
+
         if not config.contact_is_set(self.cfg):
-            # Only fires when the chat logs gave us nothing either.
-            self.tray.showMessage(
-                "Character Check",
-                i18n.t("tray.no_contact") + config.config_path(),
-                QSystemTrayIcon.Information, 8000)
+            # Only when the chat logs gave us nothing either. This was a
+            # Windows balloon until 2026-08-23; it is now a line that stands
+            # in the window until the first accepted scan.
+            self.window.set_notice(
+                i18n.t("hint.no_contact"),
+                i18n.t("hint.no_contact_tip", config.config_path()))
 
     def _prefetch_icons(self) -> None:
         try:
@@ -153,16 +163,6 @@ class TrayApp(QObject):
             return
         if got:
             log.info("icons: %s", icons.stats())
-
-    def _relabel(self) -> None:
-        """Rebuild the tray menu after a language switch.
-
-        The menu is thrown away and made again rather than relabelled: Qt owns
-        every QAction in it and nothing here keeps a handle, which is fine
-        precisely because rebuilding is this cheap.
-        """
-        self._menu_ref = self._menu()
-        self.tray.setContextMenu(self._menu_ref)
 
     def _menu(self) -> QMenu:
         menu = QMenu()
@@ -226,23 +226,19 @@ class TrayApp(QObject):
                                 if flagged else None))
 
         if flagged:
+            # The whole notification, as of 2026-08-23: the window comes up
+            # and the tray icon takes the verdict's colour. The balloon and
+            # the beep were removed on request.
+            #
+            # ⚠️ Neither reaches a user with EVE in fullscreen -- the game
+            # paints over the window, and no amount of asking Windows to
+            # raise us changes that.
+            # The beep was the one signal that did. That capability is gone
+            # deliberately, not by oversight.
             self._show_window()
-            cyno = [p for p in flagged if p.level == analyze.LEVEL_CYNO]
-            if cyno and self.cfg.get("sound", True):
-                self._beep()
-            self.tray.showMessage(
-                "Character Check",
-                "%s: %s" % (level_label(top),
-                            ", ".join(p.name for p in flagged[:5])),
-                QSystemTrayIcon.Warning if cyno else QSystemTrayIcon.Information,
-                6000)
 
-    def _beep(self) -> None:
-        try:
-            import winsound
-            winsound.MessageBeep(winsound.MB_ICONHAND)
-        except Exception:
-            QApplication.beep()
+        # The advice about signing requests has had its chance by now.
+        self.window.set_notice()
 
     def _on_tray_click(self, reason) -> None:
         if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):

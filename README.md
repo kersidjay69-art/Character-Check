@@ -89,6 +89,11 @@ start.cmd        # normal start, no console
 python main.py   # the same, with a console -- when you want the logs
 ```
 
+Starting it a second time does not start a second copy: the one already
+running raises its window and the new process exits. That is not tidiness —
+two copies would send twice the requests from one address, and zKillboard
+bans by address.
+
 Or build a standalone copy that needs no Python:
 
 ```bash
@@ -137,7 +142,9 @@ Instead of taking any of that on faith:
   but it is a checkable claim about where the file came from.
 
 The app minimises to the tray and waits. Copy a local member list in game and
-the results window comes up on its own.
+the results window comes up on its own. It does that silently — there is no
+toast and no sound. What tells you something was found is the window itself,
+and the tray icon taking the colour of the worst verdict.
 
 A pilot's row shows: the name in the colour of its verdict, icons for the cyno
 modules found, and icons for the ships he was seen in. The row expands into
@@ -155,8 +162,13 @@ see when it was last checked.
 The window remembers its position and size, including on a second or third
 monitor. The pin button keeps it above the game in windowed/borderless mode.
 
-The interface is English and Russian — the **RU/EN** button in the header
-switches instantly. English by default.
+The header carries two square buttons: the circular arrow checks whatever is in
+the clipboard right now, the bin empties the list. Everything in the window has
+a tooltip, and the row at the very bottom is how to reach the author.
+
+The interface is English. It was English and Russian up to version 0.1; the
+Russian half was removed. This file has a [Russian translation](README.ru.md),
+which is documentation rather than interface text.
 
 **EVE in fullscreen paints over the window.** Keep the game in
 windowed/borderless, or put the app on a second monitor.
@@ -185,15 +197,23 @@ have to configure anything.
 {
   "contact": "",
   "min_level": "indy",
-  "sound": true,
   "find_potential": false,
   "find_industrial": true,
   "stop_at_first": true,
   "list_pages": 1,
   "cache_limit_mb": 100,
-  "negative_ttl_days": 7
+  "negative_ttl_days": 7,
+  "window_opacity": 100
 }
 ```
+
+`window_opacity` is the slider in the bottom-right corner of the window, in
+percent. It is clamped to 50 both when you drag it and when the file is read:
+opacity applies to the text as well, and below about half the pilot names stop
+being readable.
+
+If you upgraded from 0.1 your file still has `"lang"` and `"sound"` in it.
+Both are ignored now and neither is deleted for you — it is your file.
 
 ### Who your requests are signed by
 

@@ -1,6 +1,6 @@
 # Project state
 
-Snapshot: **2026-08-23**. Update this file at the end of a session rather than
+Snapshot: **2026-08-24**. Update this file at the end of a session rather than
 starting a second one.
 
 `CLAUDE.md` is the project map and the invariants, and is read automatically.
@@ -17,13 +17,16 @@ was abandoned and why.
 | 1 | Qt-free core + console | `core/`, `python -m core.console` |
 | 2 | tray, results window, Jump Planner styling | `ui/` |
 | 3 | icons instead of text, tightened evidence rules, console-less start | `core/icons.py`, `ui/icon_cache.py`, `ui/results_window.py`, `start.cmd` |
-| 3.1 | pre-rebalance fits, tech-tier badge, RU/EN, always-on-top | `core/i18n.py`, `sde/build_cyno_sets.py`, `core/analyze.py` |
+| 3.1 | pre-rebalance fits, tech-tier badge, RU/EN (removed in 3.5), always-on-top | `core/i18n.py`, `sde/build_cyno_sets.py`, `core/analyze.py` |
 | 3.2 | evidence grouping, the `seen` level, tally as bare numbers, dark caption | `core/analyze.py`, `core/cache.py`, `ui/glyphs.py` |
 | 3.3 | three search filters, cache beside the exe, streamed results | `core/scan.py`, `core/cache.py`, `core/config.py`, `ui/results_window.py` |
 | 3.4 | published to GitHub, CI build with provenance, English docs | `.github/workflows/ci.yml`, `README.md` |
+| 3.5 | English only, no notifications, contacts footer, window logo, square action buttons | `core/i18n.py`, `ui/tray.py`, `ui/assets.py`, `ui/results_window.py` |
+| 3.6 | amber accent, window transparency, one instance only, the idle backdrop | `ui/styles.py`, `ui/single_instance.py`, `assets/make_background.py` |
+| — | version 0.2, released by tag | `core/config.py`, `.github/workflows/ci.yml` |
 | — | publication prep: two identities in the UA, LICENSE, About window | `core/config.py`, `ui/about.py`, `tests/test_distribution.py` |
 
-287 tests, none of them touching the network:
+351 tests, none of them touching the network:
 `python -m unittest discover -s tests`.
 
 Verified live: 60 hub names in both modes (8.6 s / 15.3 s, the reds match), 12
@@ -122,6 +125,272 @@ resource, `--noupx`, onedir. Open:
    test the hypothesis.** Two plausible ones in a row were wrong; a third
    without a test will cost the same and yield the same.
 
+#### The third hypothesis, and this one is built (2026-08-24)
+
+Outside evidence rather than plausibility: PySpy's CHANGELOG 0.5.6 says
+*"Switch pynsist for installation to avoid bogus virus warnings"* — a
+comparable Python/Windows EVE tool, our exact problem, and the thing it changed
+was the **packager**, not the bootloader and not the distribution format.
+
+`build_pynsist.py` is a **parallel** build path; `build.py` is untouched and
+remains how the program ships.
+
+**The premise is confirmed and it cost no upload at all.** Searching for five
+4 KB slices of the stock `runw.exe` inside each artifact:
+
+| | slices found | size | installed |
+|---|---:|---:|---:|
+| `dist/CharacterCheck/CharacterCheck.exe` | **5 of 5** | 5.6 MB | 141 MB, 207 files |
+| `build/nsis/CharacterCheck_Installer.exe` | **0 of 5** | 44.6 MB | 148 MB, 665 files |
+
+sha256 `d2a4bd48…` and `95dbe692…` respectively.
+
+⚠️ **The size objection turned out to be wrong, and it was mine.** pynsist was
+expected to cost 2–3× because it takes whole wheels and cannot tree-shake. It
+has `exclude`, whose patterns are rooted at `pkgs/`, and with `PySide6-Essentials`
+in place of the `PySide6` meta-package (which drags in the 168 MB Addons wheel)
+the installer is **44.6 MB against our 55 MB zip** — smaller, not larger.
+
+Verified running, not merely built: Qt 6.11.1 loads out of the bundled
+embeddable CPython 3.12.10, `cyno_sets` loads 73 hulls from `pkgs/sde`, the
+window and tray come up, and a second launch hands off and exits 0 exactly as
+under PyInstaller.
+
+**Three traps, all of them silent:**
+
+- ⚠️ pynsist resolves relative paths against **the directory of the config
+  file**, not the working directory. The config is generated into `build/`, so
+  a relative `assets/icon.png` sends it hunting for `build/assets/icon.png` and
+  dies with a bare `FileNotFoundError: [WinError 2]` naming no path. Every path
+  in the generated config is absolute.
+- ⚠️ `nsist.configreader.read_extra_files` reads `files` with a bare
+  `.splitlines()` — unlike `packages` and `pypi_wheels`, which it strips first
+  — and turns every line without a `>` into a path. A leading blank line
+  becomes the file `''` and pynsist dies in `shutil.copy2` with
+  `[WinError 3]`, again naming nothing. The first entry therefore goes on the
+  key's own line.
+- ⚠️ The data files must land **inside `pkgs/`**. Both
+  `cyno_sets._artifact_path` and `ui.assets._asset` fall back to two
+  directories above their own module when `sys._MEIPASS` is absent, and under
+  pynsist that is `pkgs/`. In `$INSTDIR` the app cannot find its own cyno sets,
+  which is a hard failure by design.
+
+**What is NOT settled.**
+
+⚠️ The comparison is not strict, and no number should be read off it without
+this sentence. Our detections were on `CharacterCheck.exe`; pynsist's artifact
+is an **NSIS installer stub** — a different binary with its own detection
+profile, and NSIS is itself a format malware is packed with. A fall from 2
+engines to 1 could be that and not the missing bootloader.
+
+⚠️ Portability. pynsist produces an installer, not a folder. `config.cache_dir`
+puts the cache beside the executable precisely so a copy on a USB stick carries
+its answers with it. Where pynsist actually installs, and whether that location
+is writable, was **not** verified — the run above was from the assembled tree,
+laid out by hand as the installer would.
+
+⚠️ **Do not switch the default build on one sample.** Two engines is a small
+number and VirusTotal results drift on their own; 2 → 1 could be noise. If it
+looks like a win, re-run both a week later before touching
+`.github/workflows/ci.yml` or the README.
+
+#### The answer (VirusTotal, 2026-08-24) — the third hypothesis is wrong too
+
+Both artifacts uploaded within a minute of each other.
+
+| | verdict | engines that flagged it |
+|---|---|---|
+| `CharacterCheck.exe` (PyInstaller) | **2 / 71** | Microsoft `Trojan:Win32/Wacatac.C!ml`, SecureAge `Malicious` |
+| `CharacterCheck_Installer.exe` (pynsist) | **1 / 69** | Microsoft `Trojan:Win32/Wacatac.C!ml` |
+
+⚠️ **Microsoft flags the pynsist artifact too, and that settles it.** That
+binary contains **0 of 5** slices of the PyInstaller bootloader — verified by
+byte search before either upload. The hypothesis was "remove those bytes and
+the detections stop". The bytes are gone and the detection that matters is
+still there. Removing the packager bought exactly one engine: SecureAge.
+
+⚠️ **And Defender is the one that matters.** Bkav Pro and Zillya are obscure;
+Microsoft Defender is on every Windows machine by default. Going from
+"2 engines nobody runs" to "Defender says trojan" is not an improvement to
+celebrate, and the pynsist build does not fix it.
+
+⚠️ **The 2026-08-20 baseline turned out to be unusable, and this is the most
+useful thing measured here.** Then: Bkav Pro + Zillya. Now: Microsoft +
+SecureAge — and Bkav Pro reports **Undetected** on both files. The count is
+"2 then, 2 now" while not one engine is the same engine. Verdicts on this file
+drift on their own between engine-roster updates, so **no conclusion may be
+drawn from a count alone**, only from named engines measured on the same day.
+That is why both files were uploaded together rather than comparing today's
+pynsist number against August's PyInstaller number.
+
+**What the two artifacts actually have in common**, now that the packager has
+been eliminated as the variable: an unsigned PE with a large appended overlay
+and a Python payload inside. `Wacatac.C!ml` is Defender's generic
+machine-learning bucket, and both files carry VirusTotal's `overlay` tag.
+Nothing about how the overlay got there appears to matter.
+
+⚠️ One thing is NOT isolated: our exe changed between the two measurements
+(amber accent, `background.png`), so "Defender is new since August" cannot be
+attributed to drift rather than to the new build. It does not affect the
+conclusion — Defender flags the pynsist binary as well, which shares none of
+those bytes.
+
+**Consequences.**
+
+1. `build_pynsist.py` stays as a recorded experiment. **The default build does
+   not change.** It buys one obscure engine and costs portability, and the
+   cache-beside-the-executable property is worth more than SecureAge.
+2. Code signing is the only lever left that plausibly moves Defender, which
+   puts the SignPath Foundation application back at the top rather than as one
+   item among three.
+3. ⚠️ **Do not propose a fourth packaging change.** Three hypotheses have now
+   been measured — distribution format, bootloader bytes, packager — and all
+   three were wrong. The variable is not how the Python gets into the PE.
+4. The false-positive report to send is now **Microsoft's**, not Bkav's:
+   <https://www.microsoft.com/en-us/wdsi/filesubmission>. Still the user's to
+   send.
+
+### Phase 3.6 (2026-08-24) — the app's own colours, and one measured refusal
+
+**Amber, chosen by measurement.** `ACCENT` was `#4fc3f7`, inherited wholesale
+from Jump Planner, while the one piece of artwork the project owns is amber.
+It is now `#ff944d`: contrast **8.2:1** against `BG_PANEL` (the blue managed
+8.9), and hue distances of **22.9°** from `RED` (the `cyno` verdict), **19.6°**
+from `YELLOW` (`hull`) and **11.8°** from `ORANGE` (the Tech II wedge). Set in
+two places — the module constant *and* the `default` theme preset — because
+`build._beacon_png` reads the constant at build time with `apply_theme` never
+called, so changing one would have shipped a blue `.ico`. Rendered the tray
+beacon at 16 px beside a `hull` beacon to check the two nearby hues still read
+apart. `TEXT_LINK`, `GREEN` and `RED_DARK` were unreferenced and are gone.
+
+**Window transparency**, the one control worth taking from PySpy outright: a
+slider in the footer, 50–100%, saved on `sliderReleased` rather than per tick.
+⚠️ Clamped at 50 on write *and* on read — opacity applies to text too, and a
+hand-edited `0` in `config.json` must not produce an invisible window.
+
+⚠️ It also broke the minimum width the moment it was added: `setFixedWidth(90)`
+pushed the window's floor from 318 px to 420, and `TestMinimumWidth` — written
+one phase earlier for a different bug — caught it. `setMaximumWidth` plus
+`_let_it_shrink` restored 318.
+
+**One instance at a time** (`ui/single_instance.py`, a `QLocalServer` named
+after a sha1 of `data_dir`). Not tidiness: `ZKB_CONCURRENCY` is 8 and is a
+constant *because* the price of exceeding zKillboard's rate is an IP ban, and
+two copies make it 16 from one address. A second launch asks the first to show
+itself and exits 0. `removeServer` before `listen` because a crash otherwise
+leaves the name behind and the app would refuse to start ever again; a failing
+`listen` logs and starts anyway, as `config.load` and `_start_logging` do.
+
+⚠️ **The handshake cannot be tested from one process** and this cost an hour
+of chasing a bug that was not there. `signal_existing` blocks the calling
+thread, and a server living in that same thread cannot accept while it is
+blocked — so an in-process test watches the handoff report success while the
+callback never fires. Verified with two real processes instead; the tests drive
+the socket by hand without blocking, and the trap is written into both files.
+
+**The idle backdrop.** `assets/background.png`, produced by a committed
+generator (`assets/make_background.py`, the `sde/build_cyno_sets.py` pattern):
+light denoise (luma 3, chroma 10 — the artefact is red/green speckle in the
+sky, and heavier luma smoothing eats the thin wireframe lines and the faint
+stars), 2× Lanczos, crop, dimming baked in so the app does no per-repaint work.
+472 KB.
+
+⚠️ **The first version cropped a landscape band around the planet, and it was
+wrong.** The crop was chosen from renders at 900x560 and 700x420 — and the
+window is used **tall and narrow**. `config.json` had held the answer the whole
+time: `window_rect` is 552x1374, a viewport of about 538x1260. In that window
+the landscape crop is magnified some 2.6x and shows one enormous soft fragment
+of the planet's limb.
+
+**The fix was to stop cropping.** The source composition is aspect 0.495 and
+the real viewport is 0.434 — the artwork already fits the window it is actually
+used in, and cover-scaling now trims only a sliver off the top and bottom. The
+stored file is 720x1456, the source's own width, so nothing is stored upscaled;
+the 2x Lanczos pass exists to break up the JPEG's 8x8 blocks and coming back
+down to 720 is what removes them. 973 KB, which is the most this repository
+should carry forever — 900 wide costs 1.35 MB for detail that is dimmed to 60%
+and sits behind an empty list.
+
+⚠️ **The lesson is not about aspect ratios.** Four renders were made and looked
+at, which is the right instinct, and every one of them was at a size the window
+is never used at. Measuring the wrong configuration carefully is not
+measurement. The app's own saved geometry is the first place to look for what
+"the window's size" means.
+
+It is painted by an event filter on the tree's viewport that fills the base
+colour, draws the pixmap **only when the list is empty**, and returns `False`
+so the tree still paints its rows. The QSS tree background had to become
+transparent — a background set there belongs to the widget and is painted
+*after* the filter, covering the picture. No pilot's name is ever read against
+artwork.
+
+⚠️ A first version toggled `alternatingRowColors` off when the tree was empty,
+on the theory that QTreeView carries its stripes down past the last row and
+would show the picture through a venetian blind. **Measured: it does not.** The
+mechanism was removed rather than kept with a false justification, and a test
+now covers the case it was invented for.
+
+328 → 351 tests.
+
+### Phase 3.5 (2026-08-23) — the window, on request
+
+Six changes asked for in one go, all of them about the window rather than the
+logic. Two of them turned up defects that were already shipped.
+
+**English only.** The `RU` table, `set_language`, `language`, `en()`,
+`config.lang` and the RU/EN button are gone. `retranslate()` survived under a
+new name, `_label_widgets()`: it is the only place seven widgets are ever
+labelled, and one function means the whole caption-and-tooltip set can be read
+at a glance. `README.ru.md` stays — documentation, not interface.
+
+**No notifications.** Both `showMessage` balloons and the `winsound` beep are
+gone, and `config.sound` with them. What announces a finding is the window
+coming up plus the tray icon taking the verdict's colour. ⚠️ Neither reaches a
+user with EVE in fullscreen; the beep was the one that did. Accepted knowingly.
+The startup "your requests are unsigned" balloon became
+`ResultsWindow.set_notice()`, a standing line beside the hint that clears after
+the first accepted scan.
+
+**Square action buttons.** "Check clipboard" is a 28 px square with a drawn
+circular arrow, and a bin beside it clears the list. Six glyphs now, two of
+them framed: the framed ones *do* something, the borderless ones only change
+what is on screen.
+
+⚠️ **The disappearing button was not what it looked like.** `_let_it_shrink`
+set an `Ignored` size policy, whose hint is discarded rather than deferred, so
+beside a stretch the widget got zero width — the title, the hint and that
+button were invisible at **every** window size, and phase 3.4 recorded it as
+"squeezed out below 350 px" because nobody measured a wide one. Fixed with
+`Preferred` plus a minimum of one pixel (zero is silently ignored by
+`qSmartMinSize`). Minimum width measured after: **318 px**, set by the contacts
+row; the topbar needs 283.
+
+**Contacts in the window.** A footer with Discord / Telegram / EVE, handles
+imported from `ui/about.py` — invariant 7 now holds by import rather than by
+convention. Short captions with the handle in the tooltip: full ones would put
+the minimum width at ~455 px.
+
+⚠️ **Two live bugs found while building it.**
+`ui/about.py` called `i18n.t()` without importing `i18n`, so the About window
+raised `NameError` — in the released 0.1. Nothing constructed the dialog in the
+suite, and `test_distribution` reads that file with `ast` rather than importing
+it, so everything stayed green over a window that could not open. There is a
+`tests/test_about.py` now.
+And `core/clipboard` handed the app its own writes back: Ctrl+C on selected
+pilots started a fresh scan of those same pilots. `clipboard.expect()` closes
+it, and the contacts row could not work without that fix.
+
+**Tighter ship rows.** Two delegate instances, ships at gap 0, modules still at
+4 — their 2 px coloured frames must not touch. ~13% more hulls per row.
+
+**The logo at runtime.** `ui/assets.py` loads `assets/icon.png` for the window,
+the taskbar and a 22 px copy in the topbar; `build.data_files()` puts it in the
+bundle. ⚠️ The committed PNG already carries its alpha channel — verified by
+decoding it — so nothing cuts a circle at load time. `CLAUDE.md` said otherwise
+and was corrected.
+
+287 → 328 tests.
+
 ### Phase 3.4 (2026-08-23)
 
 **Published**: <https://github.com/kersidjay69-art/Character-Check>, public,
@@ -149,9 +418,13 @@ They now shrink and clip. The saved-geometry sanity check was halved to match
 (400 → 200), or the window would snap back to 1000×660 on every launch and read
 as "it forgot".
 
-⚠️ Below roughly 350 px the title and the "Check clipboard" button are squeezed
-out entirely. Rescanning is still available from the tray menu. That is the
-price of the halving and it was accepted deliberately.
+⚠️ **This entry was wrong, and 3.5 corrected it.** The measurement was never
+taken on a *wide* window. `_let_it_shrink` used an `Ignored` size policy, which
+does not mean "use the hint when there is room" — it discards the hint, so
+beside a stretch the widget gets nothing. The title, the hint and the "Check
+clipboard" button were **0 px wide at every size**, not merely below 350. The
+real minimum is now 318 px, set by the contacts row, and the widgets are
+visible again. Details in `CLAUDE.md`; held by `tests/test_ui_window.py`.
 
 **The exe has a real logo** — `assets/icon.png`, the first and only binary
 asset in the repository. See `CLAUDE.md` for what had to be done to the source
@@ -257,9 +530,10 @@ found in Fleet Manager and reproduced here across all 73 hulls.
 **Order** — modules covert → regular → industrial; ships recon → Covert Ops →
 HIC → other combat → industrial; pilots with modules above pilots without.
 
-**RU/EN** with English as the default, 62 strings in `core/i18n.py`, instant
-switching. **Always-on-top** — a header button, state in the config. Spoilers
-no longer expand by themselves; the tree header is gone.
+**RU/EN** with English as the default, instant switching — **removed in 3.5**,
+see below. `core/i18n.py` is now one English table of 92 keys.
+**Always-on-top** — a header button, state in the config. Spoilers no longer
+expand by themselves; the tree header is gone.
 
 Lightening the ship icons was tried at 22% and 10% — **rejected**, it flattens
 the artwork more than it helps. The icons stay as CCP ships them.
@@ -301,6 +575,51 @@ monitors: the window returns to the same screen, negative coordinates included.
 
 These are not "we ran out of time", they are verified dead ends. Each cost a
 live experiment.
+
+**Screening pilots with zKillboard's `/stats/` endpoint (measured 2026-08-24).**
+PySpy fetches `api/stats/characterID/<id>/`, a small aggregate whose `groups`
+block carries `shipsLost` per ship group. The hypothesis was: a pilot with no
+losses in any cyno-capable group cannot have module or hull evidence, so the
+expensive killmail page need not be fetched. Probed live on **167 real pilots**
+(the 78 in the local cache plus 89 hub names resolved through ESI), 334
+requests, cold:
+
+| | median bytes | median time |
+|---|---:|---:|
+| `/stats/characterID/<id>/` | 11 652 | 0.31 s |
+| `/losses/characterID/<id>/page/1/` | 103 664 | 0.27 s |
+
+**It fails on cost, and structurally rather than marginally.** `/stats/` is 9×
+smaller and *exactly as slow*, because the binding constraint is not bandwidth
+— 334 requests took 40.5 s, i.e. 8.2 req/s, which is the token bucket doing its
+job. The bucket charges one token per request regardless of size, so a screen
+turns N requests into N + N(1−f) and is **never** fewer than N for any clearing
+rate f. There is no value of f that makes it pay.
+
+**And the version that would have saved anything also lies.** Screening on the
+9 `hull_groups` ids keeps 78% of pilots and produces **5 false negatives out of
+our 65 module-carrying pilots** — it silently clears pilots who demonstrably
+have a cyno, because Venture, Etana and Rabisu reach cyno capability through
+`canFitShipType` and sit in groups 25, 832 and 1283 alongside every other T1
+frigate and logistics ship. Adding those three groups removes every false
+negative and keeps 90% of pilots, saving essentially nothing. A silent false
+negative is precisely the failure that made this project reject `/asearch/`
+(invariant 5).
+
+P2 — whether `/stats/` shares the same rate bucket — was **not run**, and
+deliberately: it was the one probe whose failure mode is an IP ban, and the
+idea was already dead on P1 and P3. Partial evidence in passing: the 167
+`/stats/` requests above went through the shared bucket interleaved with the
+losses pass and returned 334/334 HTTP 200.
+
+**zKillboard already publishes a per-character cyno summary — and it cannot be
+used.** The same `/stats/` body carries `cyno: {count, standard, covert,
+industrial}`. It is present for only **41 of 167** pilots (25%), and it is
+silent about **37 of our 65** pilots who demonstrably carried a cyno module.
+Re-requesting does not populate it, so it is not lazily computed on demand.
+It is a partially-filled background job, not an index — and it would in any
+case still be one request per pilot, replacing one request per pilot, while
+discarding the hull, the date and the killmail that make a verdict explainable.
 
 **Writing corporation contacts through ESI.** The project's original idea. The
 route does not exist: `POST /corporations/{id}/contacts` → 405 `Allow: GET`,
@@ -374,10 +693,22 @@ client is not.
 **Phase 4, optional:** exporting the list, scan history, typing a name into the
 window, a hotkey.
 
+**Looked at in PySpy and not taken this round** (so they are not re-derived
+from scratch): corporation and alliance columns with a count of how many of
+that corp are in the paste; a temporary "NPSI fleet" ignore list; zKillboard
+deep links that know which column was clicked; a once-a-day GitHub release
+check. None was rejected on merit — they are simply not what was asked for.
+⚠️ PySpy's central backend is the one thing deliberately **not** taken: it
+requires a server, its data is a nightly dump about a day stale, and its
+original host answers 404 today. A mini-app that depends on somebody's VPS
+stops working when that VPS does.
+
 **`docs/MANUAL_TESTS.md`** — the plan called for it, the file was never
 written. It should collect what the automated tests cannot cover: the
-copy-from-game round trip, sound behaviour in fullscreen, verdict accuracy on
-pilots with a known history.
+copy-from-game round trip and verdict accuracy on pilots with a known history.
+⚠️ Not sound in fullscreen: as of 3.5 there is no sound and no toast, and
+nothing the app does reaches a user whose EVE is fullscreen. That was measured
+against and accepted, not left to be tested.
 
 ---
 
@@ -402,6 +733,14 @@ pilots with a known history.
    `find_potential=False` halves the request count and so reduces exposure —
    but that is a side effect, not a fix.
 
+   ⚠️ **2026-08-24, another clean data point and still not the experiment.**
+   The `/stats/` probe made 334 requests through the same bucket in 40.5 s
+   (8.2 req/s, mixed `/stats/` and `/losses/`) for **334/334 HTTP 200**. That
+   is the fifth run in a row without a 429 — and it is 334 requests, not the
+   ~2800 of the run that produced 426 of them. The size of the run remains the
+   untested variable, which is exactly what the paragraph above says to
+   measure. Do not read this as the invariant being confirmed.
+
    What to do next time: run the whole hub with both filter settings and count
    429s against elapsed time; if they reproduce, measure the real ceiling
    rather than tuning the constant to taste.
@@ -409,6 +748,23 @@ pilots with a known history.
 2. **Faction hulls (meta 4, 16 of them) get no tier badge.** The mechanism is
    ready — add a colour to `styles.META_COLORS`, one line. The original task
    mentioned only T2.
+
+3. **CCP Games is now Fenris Creations** (renamed 2026-05-06). The app's
+   disclaimer (`i18n.EN["about.disclaimer"]`) and both READMEs still say
+   "CCP hf.". ⚠️ The legal-entity suffix of the new name is **not verified**
+   and must not be guessed — a disclaimer naming a company that does not exist
+   is worse than a stale one. Proposed wording once confirmed: "Fenris
+   Creations (formerly CCP Games)".
+
+4. **How to ask them whether this is allowed.** There is **no approval to
+   obtain**: the Third Party Policies state they will not authorize or sanction
+   third-party software, and the developer documentation names no vetting
+   process. So the question can only be "is *this specific behaviour*
+   acceptable", never "please approve my app". ⚠️ The EVE Discord's
+   `#3rd-party-dev-blog` is an RSS feed and cannot be posted to; the writable
+   developer channel, if it still exists, is behind an opt-in role under
+   "Channels & Roles". A support ticket is the only channel that yields a
+   written answer. Not started.
 
 ---
 

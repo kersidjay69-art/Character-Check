@@ -1,6 +1,7 @@
-"""Small vector icons for the topbar buttons: chevrons, a pushpin, a funnel.
+"""Small vector icons for the topbar buttons: chevrons, a pushpin, a funnel,
+a circular refresh arrow and a waste bin.
 
-Drawn rather than shipped. Three glyphs do not justify carrying image files
+Drawn rather than shipped. Five glyphs do not justify carrying image files
 around, and drawing them means they take the palette colour -- the same reason
 the tech-tier wedge in `results_window` is painted instead of downloaded.
 
@@ -117,4 +118,67 @@ def pin(colour: str, size: int = 16) -> QIcon:
     tip.lineTo(8.0, 15.0)
     tip.closeSubpath()
     p.drawPath(tip)
+    return _finish(pix, p, size)
+
+
+def refresh(colour: str, size: int = 16) -> QIcon:
+    """A circular arrow -- the universal "do it again" mark.
+
+    An open arc rather than a closed ring: a full circle reads as a status
+    light, and the gap is what makes the arrowhead mean direction. The arc
+    stops short of 360 degrees so the head has somewhere to sit.
+    """
+    pix, p = _canvas(size)
+    col = QColor(colour)
+
+    pen = QPen(col, 1.7)
+    pen.setCapStyle(Qt.FlatCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    # Qt angles are in 1/16 degree, counter-clockwise from three o'clock.
+    p.drawArc(QRectF(3.2, 3.2, 9.6, 9.6), 70 * 16, -290 * 16)
+
+    # The head closes the gap the arc left, pointing clockwise.
+    p.setPen(Qt.NoPen)
+    p.setBrush(col)
+    head = QPainterPath()
+    head.moveTo(9.4, 1.4)
+    head.lineTo(9.4, 5.4)
+    head.lineTo(12.6, 3.4)
+    head.closeSubpath()
+    p.drawPath(head)
+    return _finish(pix, p, size)
+
+
+def trash(colour: str, size: int = 16) -> QIcon:
+    """A waste bin: the lid, the body, and two ribs.
+
+    Stroked like the chevrons rather than filled, so at 16 px it stays a
+    recognisable outline instead of a dark blob, and so it takes the dim
+    palette colour -- clearing the list is not the button anyone should reach
+    for first.
+    """
+    pix, p = _canvas(size)
+    col = QColor(colour)
+
+    pen = QPen(col, 1.4)
+    pen.setCapStyle(Qt.RoundCap)
+    pen.setJoinStyle(Qt.RoundJoin)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+
+    p.drawLine(QPointF(2.6, 4.2), QPointF(13.4, 4.2))      # the lid
+    p.drawLine(QPointF(6.4, 4.2), QPointF(6.4, 2.6))       # the handle
+    p.drawLine(QPointF(6.4, 2.6), QPointF(9.6, 2.6))
+    p.drawLine(QPointF(9.6, 2.6), QPointF(9.6, 4.2))
+
+    body = QPainterPath()                                   # tapered body
+    body.moveTo(4.2, 5.6)
+    body.lineTo(5.1, 13.6)
+    body.lineTo(10.9, 13.6)
+    body.lineTo(11.8, 5.6)
+    p.drawPath(body)
+
+    p.drawLine(QPointF(6.9, 7.2), QPointF(7.1, 12.0))       # the ribs
+    p.drawLine(QPointF(9.1, 7.2), QPointF(8.9, 12.0))
     return _finish(pix, p, size)

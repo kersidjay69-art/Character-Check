@@ -12,24 +12,37 @@ import bisect
 import time
 import webbrowser
 
-from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import (QAction, QBrush, QColor, QFont, QPen, QPixmap,
-                           QPolygon)
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer
+from PySide6.QtGui import (QAction, QBrush, QColor, QFont, QPainter, QPen,
+                           QPixmap, QPolygon)
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QFrame, QHBoxLayout, QHeaderView, QLabel,
-    QMainWindow, QMenu, QPushButton, QSizePolicy, QStyle, QStyledItemDelegate,
-    QStyleOptionViewItem, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-    QWidget,
+    QMainWindow, QMenu, QPushButton, QSizePolicy, QSlider, QStyle,
+    QStyledItemDelegate, QStyleOptionViewItem, QToolTip, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from core import analyze, config, i18n, scan
+from core import analyze, clipboard, config, i18n, scan
 
-from . import glyphs, styles
+from . import assets, glyphs, styles
+# The author's handles, from the one module allowed to hold them. Imported
+# rather than retyped: invariant 7 by import instead of by convention.
+from .about import CHARACTER, CHARACTER_URL, DISCORD, TELEGRAM, TELEGRAM_URL
 from .icon_cache import get_icon_cache
 
 def level_label(level: str) -> str:
-    """"cyno" -> "CYNO" / "ЦИНО". The key itself is protocol and never shown."""
+    """"cyno" -> "CYNO". The key itself is protocol and never shown."""
     return i18n.t("level." + level)
+
+
+def _count_tip(level: str) -> str:
+    """What one coloured number in the header means.
+
+    Set from two places -- `_label_widgets` once, and `_set_counts` on every
+    update -- so it has to be a function. Two copies of the same format string
+    is exactly how they drift apart.
+    """
+    return i18n.t("tip.count", level_label(level))
 
 
 def kind_label(kind: str) -> str:
@@ -52,6 +65,10 @@ _LEVEL_ORDER = (analyze.LEVEL_CYNO, analyze.LEVEL_HULL,
                 analyze.LEVEL_INDY, analyze.LEVEL_SEEN, analyze.LEVEL_NONE)
 
 _COL_NAME, _COL_MODULES, _COL_SHIPS = 0, 1, 2
+
+# The lowest window opacity the slider offers, in percent. Anything less
+# and the text goes dim along with the background.
+_OPACITY_MIN = 50
 
 # config key -> i18n suffix, in menu order. The window never spells a filter's
 # name; it only knows which setting each line drives.
@@ -102,7 +119,17 @@ class IconRowDelegate(QStyledItemDelegate):
     ICON = styles.ROW_H - 2 * INSET
     # The frame's stroke. One pixel disappears against the panel border.
     BORDER = 2
+    # Space between neighbouring icons. Modules need it: each is framed in a
+    # 2px colour and two frames touching would read as one wide box, so the
+    # gap can never drop below 2*BORDER.
     GAP = 4
+    # Ships carry no frame, so nothing has to hold them apart -- and INSET
+    # already leaves 2*3 px of air between two pieces of artwork. Zero here is
+    # not "no space", it is "no space beyond what the cells already have".
+    GAP_TIGHT = 0
+    # Class attribute as well as an instance one: the geometry test builds a
+    # delegate with __new__ and never runs __init__.
+    gap = GAP
     # HORIZONTAL only. The row should start where the icons start: no dead
     # margin on either side of the cell. It must not enter the height.
     PAD = 1
@@ -113,7 +140,7 @@ class IconRowDelegate(QStyledItemDelegate):
         return self.ICON + 2 * self.INSET
 
     @classmethod
-    def width_for(cls, count: int) -> int:
+    def width_for(cls, count: int, gap: int | None = None) -> int:
         """How wide a column has to be to show `count` icons and no "+N".
 
         Computed, never a number typed next to the delegate. It was one once:
@@ -126,18 +153,21 @@ class IconRowDelegate(QStyledItemDelegate):
         # width W spans left..left+W-1, and `_slots` compares against it. One
         # pixel short and the last icon is dropped for a "+1" -- which is
         # exactly how the old hand-typed 96 failed, only quieter.
+        gap = cls.GAP if gap is None else gap
         return (count * (cls.ICON + 2 * cls.INSET)
-                + max(0, count - 1) * cls.GAP + 2 * cls.PAD + 1)
+                + max(0, count - 1) * gap + 2 * cls.PAD + 1)
 
     # Side of the tech-tier wedge, in pixels of the drawn icon.
     BADGE = 9
 
-    def __init__(self, cache, name_of, meta_of, parent=None):
+    def __init__(self, cache, name_of, meta_of, parent=None, gap=None):
         super().__init__(parent)
         self._cache = cache
         self._name_of = name_of
         self._meta_of = meta_of
         self._scaled: dict[int, QPixmap] = {}
+        if gap is not None:
+            self.gap = int(gap)
 
     def forget(self, type_id: int) -> None:
         """An icon just arrived; drop the stale scaled copy."""
@@ -178,7 +208,7 @@ class IconRowDelegate(QStyledItemDelegate):
             if x + self.cell > right:
                 break
             out.append((x, type_id, colour))
-            x += self.cell + self.GAP
+            x += self.cell + self.gap
         return out, x
 
     def paint(self, painter, option, index):
@@ -276,12 +306,16 @@ class IconRowDelegate(QStyledItemDelegate):
 
 
 class ResultsWindow(QMainWindow):
-    def __init__(self, sets, on_rescan=None, on_language_changed=None):
+    def __init__(self, sets, on_rescan=None):
         super().__init__()
         self._sets = sets
         self._on_rescan = on_rescan
-        self._on_language_changed = on_language_changed
-        self._last_result = None
+        self._notice = ""
+        self._notice_tip = ""
+        self._said = ""
+        self._copy_token = None
+        self.tree = None
+        self._reset_stream()
         self.setWindowTitle("Character Check")
         self.resize(1000, 660)
 
@@ -311,6 +345,16 @@ class ResultsWindow(QMainWindow):
                 self.setGeometry(x, y, w, h)
         if cfg.get("window_maximized"):
             self.showMaximized()
+        opacity = cfg.get("window_opacity", 100)
+        if isinstance(opacity, (int, float)):
+            value = max(_OPACITY_MIN, min(100, int(opacity)))
+            # blockSignals: setValue emits valueChanged, and without the block
+            # the window would save a preference merely because it had read
+            # one -- the same trap `_sync_filters` documents.
+            self.opacity_slider.blockSignals(True)
+            self.opacity_slider.setValue(value)
+            self.opacity_slider.blockSignals(False)
+            self._apply_opacity(value)
 
     @staticmethod
     def _on_a_screen(x, y, w, h) -> bool:
@@ -357,6 +401,27 @@ class ResultsWindow(QMainWindow):
         except Exception:
             pass
 
+    def _apply_opacity(self, percent: int) -> None:
+        """Live while the slider moves; the clamp is not decoration.
+
+        A hand-edited 0 in config.json would otherwise produce an invisible
+        window that cannot be found to be fixed.
+        """
+        percent = max(_OPACITY_MIN, min(100, int(percent)))
+        self.setWindowOpacity(percent / 100.0)
+
+    def _save_opacity(self) -> None:
+        try:
+            cfg = config.load()
+            value = int(self.opacity_slider.value())
+            if value != cfg.get("window_opacity"):
+                cfg["window_opacity"] = value
+                config.save(cfg)
+        except Exception:
+            # Same rule as the geometry: losing a preference must never take
+            # the app down with it.
+            pass
+
     def save_geometry(self) -> None:
         """Remember the placement. Cheap, so it is safe to call on every hide."""
         try:
@@ -382,18 +447,38 @@ class ResultsWindow(QMainWindow):
     def _let_it_shrink(widget) -> None:
         """Stop this widget from setting the window's minimum width.
 
-        Qt derives a window's minimum from its layout, and a QLabel or a
-        QPushButton reports the full width of its text -- so the title, the
-        bottom hint and the "Check clipboard" button between them were holding
-        the window at 516 px whether or not anyone wanted it that wide. An
-        Ignored horizontal policy lets them be squeezed and clipped instead;
-        the tree is what the window is actually for, and it shrinks happily.
+        Qt derives a window's minimum from its layout, and a QLabel reports
+        the full width of its text -- so the title and the bottom hint were
+        holding the window at 516 px whether or not anyone wanted it that
+        wide. Here they are allowed to be squeezed and clipped instead; the
+        tree is what the window is actually for, and it shrinks happily.
+
+        ⚠️ This was `Ignored` with a minimum of 0 until 2026-08-23, and that
+        combination is a trap: an Ignored widget's size hint is not "used when
+        there is room", it is *discarded*, so beside a stretch it gets nothing
+        at all. The title, the hint and the old "Check clipboard" button were
+        0 px wide at every window size -- permanently invisible, not merely
+        squeezed. That is what "bring the button back" turned out to mean.
+
+        `Preferred` keeps the size hint, and the minimum of ONE pixel is what
+        lets the window shrink past it: `qSmartMinSize` only honours an
+        explicit minimum when it is greater than zero, so a minimum of 0 is
+        silently ignored and the label's own hint becomes the floor again.
         """
-        widget.setSizePolicy(QSizePolicy.Ignored,
+        widget.setSizePolicy(QSizePolicy.Preferred,
                              widget.sizePolicy().verticalPolicy())
-        widget.setMinimumWidth(0)
+        widget.setMinimumWidth(1)
 
     def _build(self) -> QWidget:
+        # The logo, if we have one. A missing file means no widget at all
+        # rather than an empty label eating the spacing around it.
+        self.logo = None
+        pix = assets.logo_pixmap(styles.LOGO_H)
+        if pix is not None:
+            self.logo = QLabel()
+            self.logo.setPixmap(pix)
+            self.logo.setFixedSize(pix.size() / pix.devicePixelRatio())
+
         title = QLabel("CHARACTER CHECK")
         title.setObjectName("title")
         self.title = title
@@ -415,11 +500,20 @@ class ResultsWindow(QMainWindow):
             self._count_labels[level] = lbl
             self.counts_row.addWidget(lbl)
 
-        self.rescan_btn = QPushButton(i18n.t("btn.rescan"))
-        self.rescan_btn.setObjectName("primary")
-        self._let_it_shrink(self.rescan_btn)
-        self.rescan_btn.clicked.connect(
+        # The two buttons that DO something, both square glyphs.
+        #
+        # "Check clipboard" used to be a wide text button carrying an Ignored
+        # size policy, so that the window could still shrink to 230 px -- and
+        # the consequence was that below ~350 px the button was squeezed out
+        # of existence. A 28 px square never has to disappear, which is the
+        # better answer to the same problem.
+        self.rescan_btn = self._square_button(
+            glyphs.refresh(styles.ACCENT),
             lambda: self._on_rescan and self._on_rescan())
+        # Dim, not accent: emptying the list is not what anyone should reach
+        # for first, and the colour is the whole ranking.
+        self.clear_btn = self._square_button(glyphs.trash(styles.TEXT_DIM),
+                                             self.clear)
 
         # Three glyph buttons. Their captions became tooltips: the words cost
         # more width than they were worth, and the chevrons say the same thing
@@ -450,35 +544,34 @@ class ResultsWindow(QMainWindow):
         self.on_top_btn.toggled.connect(self._sync_pin_icon)
         self.on_top_btn.toggled.connect(self._set_on_top)
 
-        # Two letters rather than a flag or a combo: it has to be readable at
-        # a glance and cost one click.
-        self.lang_btn = QPushButton("")
-        self.lang_btn.setFixedWidth(36)
-        self.lang_btn.clicked.connect(self._toggle_language)
-
         top = QHBoxLayout()
         top.setContentsMargins(12, 6, 12, 6)
         top.setSpacing(10)
+        if self.logo is not None:
+            top.addWidget(self.logo)
         top.addWidget(title)
         top.addSpacing(6)
         top.addLayout(self.counts_row)
         top.addStretch(1)
-        top.addWidget(self.lang_btn)
+        # Right to left: the two that change the view, then the two that act.
+        # The primary action stays rightmost, where the eye ends up.
         top.addWidget(self.filters_btn)
         top.addWidget(self.on_top_btn)
         top.addWidget(self.expand_btn)
         top.addWidget(self.collapse_btn)
+        top.addWidget(self.clear_btn)
         top.addWidget(self.rescan_btn)
 
-        topbar = QFrame()
-        topbar.setObjectName("topbar")
-        topbar.setLayout(top)
+        self.topbar = QFrame()
+        self.topbar.setObjectName("topbar")
+        self.topbar.setLayout(top)
+        topbar = self.topbar
 
         self.tree = QTreeWidget()
         # Three columns and no verdict column: the pilot's name wears the
         # threat colour, and the header already carries the per-level counts.
         self.tree.setColumnCount(3)
-        self.tree.setHeaderLabels(["ПИЛОТ", "МОДУЛИ", "КОРАБЛИ"])
+        self.tree.setHeaderLabels(["PILOT", "MODULES", "SHIPS"])
         self.tree.setRootIsDecorated(True)
         self.tree.setAlternatingRowColors(True)
         self.tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -487,10 +580,18 @@ class ResultsWindow(QMainWindow):
         self.tree.itemDoubleClicked.connect(self._open_link)
 
         self._icons = get_icon_cache()
+        # Two delegates, one per icon column, differing only in the gap.
+        # Modules are framed in 2px of colour and their frames must not touch;
+        # ships are unframed, so nothing has to hold them apart and the row
+        # fits more of them. See IconRowDelegate.GAP_TIGHT.
         self._delegate = IconRowDelegate(self._icons, self._type_name,
                                          self._sets.meta_group, self.tree)
-        self.tree.setItemDelegateForColumn(1, self._delegate)
-        self.tree.setItemDelegateForColumn(2, self._delegate)
+        self._ship_delegate = IconRowDelegate(
+            self._icons, self._type_name, self._sets.meta_group, self.tree,
+            gap=IconRowDelegate.GAP_TIGHT)
+        self._delegates = (self._delegate, self._ship_delegate)
+        self.tree.setItemDelegateForColumn(_COL_MODULES, self._delegate)
+        self.tree.setItemDelegateForColumn(_COL_SHIPS, self._ship_delegate)
         self._icons.icon_ready.connect(self._on_icon_ready)
 
         head = self.tree.header()
@@ -514,6 +615,11 @@ class ResultsWindow(QMainWindow):
         # The three headings said nothing the icons do not: a name is a name,
         # and the two icon columns are told apart by their frames.
         head.hide()
+
+        self._backdrop = assets.background_pixmap()
+        self._backdrop_scaled = None
+        self._backdrop_size = None
+        self.tree.viewport().installEventFilter(self)
 
         body = QVBoxLayout()
         body.setContentsMargins(6, 6, 6, 4)
@@ -539,17 +645,62 @@ class ResultsWindow(QMainWindow):
         layout.addWidget(topbar)
         layout.addWidget(body_frame, 1)
         layout.addLayout(hint_row)
+        layout.addWidget(self._contacts_row())
 
         central = QWidget()
+        central.setObjectName("central")
         central.setLayout(layout)
 
         self.copy_action = QAction(i18n.t("action.copy_names"), self)
         self.copy_action.setShortcut("Ctrl+C")
         self.copy_action.triggered.connect(self._copy_selected)
         self.addAction(self.copy_action)
-        self._sync_language_button()
-        self.retranslate()
+        self._label_widgets()
         return central
+
+    # --- the backdrop -----------------------------------------------------
+
+    def eventFilter(self, obj, event):
+        if obj is self.tree.viewport() and event.type() == QEvent.Paint:
+            self._paint_backdrop()
+            # False, not True: the tree must still paint its rows, on top of
+            # what we just put down.
+            return False
+        return super().eventFilter(obj, event)
+
+    def _paint_backdrop(self) -> None:
+        """The viewport's own base colour, and the picture when idle.
+
+        The base is painted here rather than in the QSS because a QSS
+        background belongs to the widget and is painted after this filter --
+        it would cover the picture. `test_ui_window.TestBackground` is what
+        holds this honest: no part of the window may end up unpainted.
+
+        The picture is drawn only when the list is empty. That is the whole
+        feature -- what an idle window shows instead of a flat rectangle --
+        and it means no pilot's name is ever read against artwork.
+        """
+        view = self.tree.viewport()
+        painter = QPainter(view)
+        painter.fillRect(view.rect(), QColor(styles.BG_PANEL))
+        if self._backdrop is not None and self.tree.topLevelItemCount() == 0:
+            painter.drawPixmap(0, 0, self._cover(view.width(), view.height()))
+        painter.end()
+
+    def _cover(self, w: int, h: int) -> QPixmap:
+        """The backdrop scaled to fill `w` x `h`, cropped, and remembered.
+
+        Cached on the size: a repaint happens on every scroll and every hover,
+        and rescaling a 1440x760 pixmap each time is real work for a picture
+        that has not changed.
+        """
+        if self._backdrop_size != (w, h):
+            grown = self._backdrop.scaled(w, h, Qt.KeepAspectRatioByExpanding,
+                                          Qt.SmoothTransformation)
+            self._backdrop_scaled = grown.copy((grown.width() - w) // 2,
+                                               (grown.height() - h) // 2, w, h)
+            self._backdrop_size = (w, h)
+        return self._backdrop_scaled
 
     def _icon_button(self, icon, on_click) -> QPushButton:
         """A square, borderless button carrying one drawn glyph."""
@@ -560,6 +711,101 @@ class ResultsWindow(QMainWindow):
         if on_click is not None:
             btn.clicked.connect(on_click)
         return btn
+
+    def _square_button(self, icon, on_click) -> QPushButton:
+        """The same glyph, but framed: a button that acts, not one that views.
+
+        Two pixels larger than `_icon_button` because the border eats one on
+        each side and the glyph inside has to stay the same size.
+        """
+        btn = QPushButton()
+        btn.setObjectName("square_btn")
+        btn.setIcon(icon)
+        btn.setFixedSize(28, 28)
+        if on_click is not None:
+            btn.clicked.connect(on_click)
+        return btn
+
+    def _contacts_row(self) -> QFrame:
+        """The author's three handles, at the foot of the window.
+
+        The handles themselves live in `ui/about.py` and are imported, never
+        retyped: invariant 7 says they exist in exactly one place, and an
+        import is the only version of that rule a refactor cannot quietly
+        break. Only `ui/` may see them -- `core/` is where the networking is,
+        and a handle there would end up signing a stranger's traffic.
+
+        Short captions with the handle in the tooltip. "Discord: kersid_jay"
+        across three buttons sets the window's minimum width at ~455 px, which
+        is most of what the narrow-window work bought back.
+        """
+        self.discord_btn = QPushButton(i18n.t("contact.discord"))
+        # Discord has no per-user link, so the handle goes to the clipboard --
+        # the same compromise the About dialog makes.
+        self.discord_btn.clicked.connect(lambda: self._copy_contact(DISCORD))
+        self.telegram_btn = QPushButton(i18n.t("contact.telegram"))
+        self.telegram_btn.clicked.connect(
+            lambda: webbrowser.open(TELEGRAM_URL))
+        self.eve_btn = QPushButton(i18n.t("contact.eve"))
+        self.eve_btn.clicked.connect(lambda: webbrowser.open(CHARACTER_URL))
+
+        # Transparency, on the right of the footer where PySpy puts it too --
+        # a window that sits beside the game client is more useful when it can
+        # be seen through. The slider is the whole control; there is no number,
+        # because the number is not the point and the effect is visible while
+        # dragging.
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        # Wide when there is room, squeezed to nothing when there is not --
+        # the same treatment the title and the hint get. A fixed 90 px here
+        # pushed the window's minimum width from 318 to 420, which the
+        # minimum-width test caught immediately.
+        self.opacity_slider.setMaximumWidth(90)
+        self._let_it_shrink(self.opacity_slider)
+        # 50 is the floor and it is not arbitrary: setWindowOpacity dims the
+        # text along with everything else, and below half the pilot names stop
+        # being readable.
+        self.opacity_slider.setRange(_OPACITY_MIN, 100)
+        self.opacity_slider.setValue(100)
+        self.opacity_slider.valueChanged.connect(self._apply_opacity)
+        # Saved on release, not on every tick: a single drag emits dozens of
+        # values and each one would rewrite config.json.
+        self.opacity_slider.sliderReleased.connect(self._save_opacity)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(12, 5, 12, 5)
+        row.setSpacing(6)
+        row.addWidget(self.discord_btn)
+        row.addWidget(self.telegram_btn)
+        row.addWidget(self.eve_btn)
+        row.addStretch(1)
+        row.addWidget(self.opacity_slider)
+
+        frame = QFrame()
+        frame.setObjectName("footer")
+        frame.setLayout(row)
+        return frame
+
+    def _copy_contact(self, text: str) -> None:
+        """Put a handle on the clipboard and say so, briefly.
+
+        `clipboard.expect` is not optional. The watcher polls the clipboard
+        sequence number and cannot tell our own write from a paste, so without
+        it this handle comes back ~200 ms later as a scan, the guard refuses
+        it, and the refusal lands in the very label this confirmation is
+        written to.
+        """
+        clipboard.expect(text)
+        QApplication.clipboard().setText(text)
+        self._say(i18n.t("contact.copied", text))
+        # A token rather than a flag: any other message clears it (see _say),
+        # so a scan that starts in the meantime is not overwritten when the
+        # timer fires.
+        self._copy_token = token = object()
+        QTimer.singleShot(2500, lambda: self._restore_hint(token))
+
+    def _restore_hint(self, token) -> None:
+        if self._copy_token is token:
+            self._say(i18n.t("status.idle"))
 
     def _show_filters(self) -> None:
         self.filters_menu.exec(
@@ -612,56 +858,74 @@ class ResultsWindow(QMainWindow):
             glyphs.pin(styles.ACCENT if on else styles.TEXT_DIM))
 
     def _say(self, text: str) -> None:
-        self.hint.setText(text)
+        """Put one line in the hint, with the standing notice beside it.
+
+        The tooltip repeats the whole thing: the hint carries an Ignored size
+        policy so the window can shrink, which means it really is clipped at
+        narrow widths and there would otherwise be no way to read it.
+        """
+        self._said = text
+        self._copy_token = None      # any message cancels a pending revert
+        full = "%s   ·   %s" % (text, self._notice) if self._notice else text
+        self.hint.setText(full)
+        self.hint.setToolTip(self._notice_tip or full)
+
+    def set_notice(self, text: str = "", tip: str = "") -> None:
+        """A standing line beside the hint. Empty arguments take it away.
+
+        This is startup advice, not live state. The only user is the "your
+        requests go out unsigned" warning, which used to be a Windows balloon
+        at launch: it stands through the idle period and the first scan, then
+        goes. Repeating it under every scan would be the nagging the balloon
+        was removed to stop; dropping it silently would lose the one place the
+        user is told the setting exists. About still says it permanently, in
+        the User-Agent line.
+        """
+        self._notice, self._notice_tip = text, tip
+        self._say(self._said)
 
     def tree_expand_all(self) -> None:
         self.tree.expandAll()
 
-    # --- language ---------------------------------------------------------
+    # --- captions ---------------------------------------------------------
 
-    def _sync_language_button(self) -> None:
-        """The button shows the language it will switch TO, not the current one."""
-        other = "RU" if i18n.language() == "en" else "EN"
-        self.lang_btn.setText(other)
+    def _label_widgets(self) -> None:
+        """The ONE place a caption or a tooltip is set.
 
-    def _toggle_language(self) -> None:
-        i18n.set_language("ru" if i18n.language() == "en" else "en")
-        try:
-            cfg = config.load()
-            cfg["lang"] = i18n.language()
-            config.save(cfg)
-        except Exception:
-            pass
-        self.retranslate()
-        if self._on_language_changed:
-            self._on_language_changed()
+        There is no language to switch any more, so this runs once, from
+        `_build`. It stays a separate function for the discipline it enforces:
+        a new button gets its tooltip HERE, where the whole set can be read at
+        a glance, instead of three lines after its own constructor where the
+        next reader will not find it.
 
-    def retranslate(self) -> None:
-        """Re-label everything built once at construction.
-
-        Every widget whose text is a literal has to be listed here; there is no
-        way around it short of rebuilding the window. The tree is the awkward
-        part -- evidence labels are baked into each item when it is created, so
-        the rows are re-made from the last result rather than relabelled.
+        Every widget it touches has to be held on `self` -- a local in
+        `_build` cannot be reached from here. That trap outlived the language
+        switch it was written for.
         """
-        self.rescan_btn.setText(i18n.t("btn.rescan"))
-        # These three carry a glyph and no text, so their label IS the tooltip.
-        self.expand_btn.setToolTip(i18n.t("btn.expand"))
-        self.collapse_btn.setToolTip(i18n.t("btn.collapse"))
-        self.on_top_btn.setToolTip("%s   ·   %s" % (i18n.t("btn.on_top"),
-                                                    i18n.t("btn.on_top_tip")))
+        # The glyph buttons carry no text at all, so their label IS the
+        # tooltip -- without one they are four unexplained shapes.
+        self.rescan_btn.setToolTip(i18n.t("tip.rescan"))
+        self.clear_btn.setToolTip(i18n.t("tip.clear"))
+        self.expand_btn.setToolTip("%s   ·   %s" % (
+            i18n.t("btn.expand"), i18n.t("btn.expand_tip")))
+        self.collapse_btn.setToolTip("%s   ·   %s" % (
+            i18n.t("btn.collapse"), i18n.t("btn.collapse_tip")))
+        self.on_top_btn.setToolTip("%s   ·   %s" % (
+            i18n.t("btn.on_top"), i18n.t("btn.on_top_tip")))
         self.filters_btn.setToolTip("%s\n\n%s" % (i18n.t("btn.filters"),
-                                                   i18n.t("filter.tip")))
+                                                  i18n.t("filter.tip")))
         for key, act in self.filter_actions.items():
             act.setText(i18n.t("filter." + _FILTER_KEYS[key]))
         self.copy_action.setText(i18n.t("action.copy_names"))
         for level, lbl in self._count_labels.items():
-            lbl.setToolTip(level_label(level))
-        self._sync_language_button()
-        if self._last_result is not None:
-            self.show_result(self._last_result)
-        else:
-            self._say(i18n.t("status.idle"))
+            lbl.setToolTip(_count_tip(level))
+        # The handle is in the tooltip rather than the caption: a caption
+        # reading "Discord: kersid_jay" would set the window's minimum width.
+        self.discord_btn.setToolTip(i18n.t("contact.tip_discord", DISCORD))
+        self.telegram_btn.setToolTip(i18n.t("contact.tip_telegram", TELEGRAM))
+        self.eve_btn.setToolTip(i18n.t("contact.tip_eve", CHARACTER))
+        self.opacity_slider.setToolTip(i18n.t("tip.opacity"))
+        self._say(i18n.t("status.idle"))
 
     def _type_name(self, type_id: int) -> str:
         """Tooltip text for one icon: modules first, then any ship."""
@@ -672,7 +936,10 @@ class ResultsWindow(QMainWindow):
         return self._sets.hull_name(type_id)
 
     def _on_icon_ready(self, type_id: int) -> None:
-        self._delegate.forget(type_id)
+        # Both delegates: each keeps its own scaled-pixmap cache, and the one
+        # that was not told would go on drawing the old scale forever.
+        for delegate in self._delegates:
+            delegate.forget(type_id)
         self.tree.viewport().update()
 
     # --- population ------------------------------------------------------
@@ -682,7 +949,7 @@ class ResultsWindow(QMainWindow):
             n = counts.get(level, 0)
             if n:
                 lbl.setText(str(n))
-                lbl.setToolTip(level_label(level))
+                lbl.setToolTip(_count_tip(level))
                 lbl.show()
             else:
                 lbl.hide()
@@ -708,15 +975,38 @@ class ResultsWindow(QMainWindow):
         request leaves the machine, so the dangerous names are on screen
         immediately and the rest fill in underneath them.
         """
+        self._reset_stream(total)
+        self.rescan_btn.setEnabled(False)
+        self._say(i18n.t("status.scanning", self._stream_total))
+
+    def _reset_stream(self, total: int = 0) -> None:
+        """Back to an empty list. Shared by a new scan and by Clear.
+
+        Also called from `__init__`, so that `add_pilot` cannot meet a missing
+        attribute: a `pilot_ready` arriving without a preceding
+        STAGE_SCANNING would otherwise raise on `self._stream_done`.
+        """
         self._last_result = None
         self._stream_keys = []
         self._stream_counts = {}
         self._stream_total = max(0, int(total))
         self._stream_done = 0
-        self.tree.clear()
-        self._set_counts({})
-        self.rescan_btn.setEnabled(False)
-        self._say(i18n.t("status.scanning", self._stream_total))
+        if getattr(self, "tree", None) is not None:
+            self.tree.clear()
+            self._set_counts({})
+
+    def clear(self) -> None:
+        """Empty the list and go back to waiting.
+
+        ⚠️ The tray icon keeps the colour of the last verdict. That is
+        deliberate: the tray means "the last answer this session", the window
+        means "what is on screen", and resetting it would need a callback from
+        the window into TrayApp -- the exact coupling that went away with the
+        language switch.
+        """
+        self._reset_stream(0)
+        self.rescan_btn.setEnabled(True)
+        self._say(i18n.t("status.idle"))
 
     def add_pilot(self, p) -> None:
         """One pilot's answer, dropped into the place it will end up in.
@@ -888,7 +1178,11 @@ class ResultsWindow(QMainWindow):
         names = [i.data(0, _ROLE_NAME) for i in self.tree.selectedItems()
                  if i.parent() is None and i.data(0, _ROLE_NAME)]
         if names:
-            QApplication.clipboard().setText("\n".join(names))
+            text = "\n".join(names)
+            # Without this the watcher reads our own write and rescans the
+            # very pilots that were just copied.
+            clipboard.expect(text)
+            QApplication.clipboard().setText(text)
 
     def showEvent(self, event):
         super().showEvent(event)

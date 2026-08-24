@@ -123,7 +123,7 @@ class TestModuleColumnWidth(unittest.TestCase):
     """
 
     @staticmethod
-    def _slots(width, count):
+    def _slots(width, count, gap=None):
         """Ask the delegate's own layout code, rather than re-deriving it.
 
         Re-deriving is how the two numbers drifted apart in the first place.
@@ -134,6 +134,10 @@ class TestModuleColumnWidth(unittest.TestCase):
 
         from PySide6.QtCore import QRect
         delegate = IconRowDelegate.__new__(IconRowDelegate)
+        # __new__ skips __init__, so `gap` comes from the class attribute
+        # unless this test sets one -- which is why the class carries one.
+        if gap is not None:
+            delegate.gap = gap
         option = SimpleNamespace(rect=QRect(0, 0, width, styles.ROW_H))
         slots, _ = IconRowDelegate._slots(delegate, option,
                                           [(1, None)] * count)
@@ -165,23 +169,68 @@ class TestModuleColumnWidth(unittest.TestCase):
         self.assertEqual(3, len(analyze.ALL_CYNO))
 
 
+class TestIconGap(unittest.TestCase):
+    """Two columns, two gaps, one delegate class.
+
+    Ships are unframed, so nothing has to hold them apart and the row fits
+    more of them. Modules cannot follow: each is framed in a 2px colour, and
+    two frames touching read as one wide box.
+    """
+
+    # Wrapped again: reading a staticmethod off a class yields a plain
+    # function, which would then take `self` as its first argument.
+    _slots = staticmethod(TestModuleColumnWidth._slots)
+
+    def test_the_module_gap_keeps_the_coloured_frames_apart(self):
+        """The reason the modules column cannot use the tight gap, as a
+        number rather than as a sentence in a comment."""
+        self.assertGreaterEqual(IconRowDelegate.GAP,
+                                2 * IconRowDelegate.BORDER)
+
+    def test_the_tight_gap_fits_more_ships_in_the_same_width(self):
+        """The whole point of the change, in one assertion."""
+        wide = self._slots(400, 20, gap=IconRowDelegate.GAP)
+        tight = self._slots(400, 20, gap=IconRowDelegate.GAP_TIGHT)
+        self.assertGreater(tight, wide)
+
+    def test_width_and_slots_still_agree_at_the_tight_gap(self):
+        """`width_for` grew a parameter; the inclusive-right()+1 has to
+        survive it, or the last ship is dropped for a "+1"."""
+        gap = IconRowDelegate.GAP_TIGHT
+        for count in (1, 2, 3, 4):
+            self.assertEqual(
+                count,
+                self._slots(IconRowDelegate.width_for(count, gap), count,
+                            gap=gap), count)
+
+    def test_one_pixel_less_is_not_enough_at_the_tight_gap(self):
+        gap = IconRowDelegate.GAP_TIGHT
+        for count in (2, 3):
+            self.assertEqual(
+                count - 1,
+                self._slots(IconRowDelegate.width_for(count, gap) - 1, count,
+                            gap=gap), count)
+
+    def test_the_default_gap_is_still_the_module_one(self):
+        """`width_for(n)` with no gap sizes the module column, and the call
+        site in _build passes no gap."""
+        self.assertEqual(IconRowDelegate.width_for(3, IconRowDelegate.GAP),
+                         IconRowDelegate.width_for(3))
+
+
 class TestNameColumn(unittest.TestCase):
     """What held the name column at 250 px was never the names.
 
     99% of a 1402-pilot hub paste fits in 125 px and the longest was 152. It
     was the evidence label underneath -- "2026-05-03  died in a cyno hull" is
-    164 px, 184 in Russian. The short forms fit in 124/133.
+    164 px. The short form fits in 124.
     """
 
     def test_every_evidence_kind_has_a_short_label(self):
         for kind in ("fitted", "cargo", "hull_lost", "hull_flown"):
-            for lang in ("en", "ru"):
-                i18n.set_language(lang)
-                short = i18n.t("short." + kind)
-                self.assertNotEqual("short." + kind, short, (kind, lang))
-                self.assertLess(len(short), len(i18n.t("kind." + kind)),
-                                (kind, lang))
-        i18n.set_language("en")
+            short = i18n.t("short." + kind)
+            self.assertNotEqual("short." + kind, short, kind)
+            self.assertLess(len(short), len(i18n.t("kind." + kind)), kind)
 
 
 class TestFilterMenu(unittest.TestCase):
@@ -193,13 +242,10 @@ class TestFilterMenu(unittest.TestCase):
         for key in results_window._FILTER_KEYS:
             self.assertIn(key, config.DEFAULTS, key)
 
-    def test_every_menu_line_has_a_label_in_both_languages(self):
+    def test_every_menu_line_has_a_label(self):
         for suffix in results_window._FILTER_KEYS.values():
-            for lang in ("en", "ru"):
-                i18n.set_language(lang)
-                self.assertNotEqual("filter." + suffix,
-                                    i18n.t("filter." + suffix), suffix)
-        i18n.set_language("en")
+            self.assertNotEqual("filter." + suffix,
+                                i18n.t("filter." + suffix), suffix)
 
     def test_potential_is_off_by_default(self):
         """The default is the whole speed story: with it off a scan asks

@@ -28,7 +28,7 @@ import sys
 import threading
 
 APP_NAME = "CharacterCheck"
-VERSION = "0.1"
+VERSION = "0.2"
 
 # The software's identity, the same in every copy. zKillboard's own example
 # UA allows a website ("your name, email, website etc."), and a repository is
@@ -49,14 +49,9 @@ DEFAULTS = {
     # console stays terse: "seen" adds every pilot ever spotted in a Covert
     # Ops or a T3, which is most of a trade hub.
     "min_level": "indy",
-    # Interface language: en | ru. English by default -- the project is
-    # published on GitHub, and the people who find it there mostly do not
-    # read Russian.
-    "lang": "en",
     # Colour scheme, same preset ids as Jump Planner: default | amarr |
     # gallente | caldari | ore | minmatar | soe | coal | photon.
     "theme": "default",
-    "sound": True,
 
     # WHAT TO LOOK FOR. These three decide both what the window shows and how
     # many requests a scan costs -- see `scan.scan_pilot`.
@@ -94,6 +89,11 @@ DEFAULTS = {
     # a human can read and fix by hand.
     "window_rect": [],
     "window_maximized": False,
+    # Window transparency, percent. 100 is opaque. Clamped to 50 at both ends
+    # of its journey -- opacity applies to the text as well as the background,
+    # and below roughly half the pilot names stop being readable, which reads
+    # as a broken window rather than a subtle one.
+    "window_opacity": 100,
     # Keep the results window above other windows. Worth having because EVE
     # in fullscreen paints over everything else.
     "window_on_top": False,
@@ -143,6 +143,12 @@ def _writable(path: str) -> bool:
         return False
 
 
+# Named rather than a literal because `build.py` has to know it too: a rebuild
+# copied over an existing folder must step around this one directory. Two
+# copies of the string "cache" is how a build starts deleting a user's data.
+CACHE_FOLDER = "cache"
+
+
 def cache_dir() -> str:
     """Where the killboard cache lives: a folder beside the application.
 
@@ -158,7 +164,7 @@ def cache_dir() -> str:
     if base:
         os.makedirs(base, exist_ok=True)
         return base
-    beside = os.path.join(app_dir(), "cache")
+    beside = os.path.join(app_dir(), CACHE_FOLDER)
     if _writable(beside):
         return beside
     return data_dir()

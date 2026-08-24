@@ -252,7 +252,7 @@ def scan_text(text: str, own_names=(), cfg: dict | None = None,
     resolved = esi.resolve_names(verdict.names)
     if not resolved:
         return ScanResult(False, "rejected",
-                          i18n.en("reason.no_name_resolved"),
+                          i18n.t("reason.no_name_resolved"),
                           reason_key="reason.no_name_resolved")
 
     unresolved = tuple(n for n in verdict.names if n.casefold() not in resolved)
