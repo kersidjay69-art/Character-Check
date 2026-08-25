@@ -57,6 +57,21 @@ The funnel in the header, three switches:
 
 Flipping any of them restarts the check immediately.
 
+## The ignore list
+
+Your own fleet is not the threat, and after one paste it is noise in every
+local for the rest of the evening. The circled-minus button in the header
+holds a menu: ignore the selected pilots, ignore everyone the last paste
+checked, or empty the list. A right-click on a pilot in the list does the same
+for him alone.
+
+An ignored pilot is dropped **before** anything is looked up, so he costs no
+cache read and no killboard request at all — a forty-strong fleet becomes
+free rather than checked and thrown away.
+
+The list is never written to disk. It survives closing the window (that only
+hides it to the tray) and is gone when the application exits.
+
 ## What it cannot tell you
 
 It checks the pilot's **last 200 losses** — one page of the killboard. For a

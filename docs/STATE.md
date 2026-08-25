@@ -1,6 +1,6 @@
 # Project state
 
-Snapshot: **2026-08-24**. Update this file at the end of a session rather than
+Snapshot: **2026-08-25**. Update this file at the end of a session rather than
 starting a second one.
 
 `CLAUDE.md` is the project map and the invariants, and is read automatically.
@@ -9,12 +9,24 @@ was abandoned and why.
 
 ---
 
-## Right now (2026-08-24)
+## Right now (2026-08-25)
 
-**0.2 is released.** `git tag v0.2` was pushed, CI built it and published the
-archive with a provenance attestation. `config.VERSION` is `"0.2"`. The working
+**0.3 is released.** `git tag v0.3` was pushed, CI built it and published the
+archive with a provenance attestation. `config.VERSION` is `"0.3"`. The working
 tree is clean, `main` is pushed, and a built copy also sits in the author's
-`Desktop\CC\CharacterCheck\` (rebuilt with `build.py --dest`).
+`Desktop\CC\CharacterCheck\` (rebuilt with `build.py --dest`, 5 633 811
+bytes, version resource verified as 0.3 in Explorer's Details tab).
+
+What 0.3 added, both on request and both described in `CLAUDE.md`:
+
+- **the session ignore list** (3.7) — a circled-minus menu in the topbar and a
+  right-click on a pilot. It is applied in `scan.scan_text` before the cache
+  read, so an ignored pilot costs no lookup and no request; nothing writes it
+  down, because the requirement was that it clear itself on exit;
+- **the backdrop stays behind the results** (3.8) — the reversal of a rule this
+  file and `CLAUDE.md` both used to state the other way round. Every label now
+  sits on its own translucent panel, `SCRIM_ALPHA = 0.80`, measured against the
+  brightest pixel the artwork contains rather than chosen by eye.
 
 **Three things are closed and must not be reopened without new data.** Each
 cost a live experiment, and the detail is further down this file:
@@ -61,6 +73,7 @@ whether this is allowed at all.
 | — | version 0.2, released by tag | `core/config.py`, `.github/workflows/ci.yml` |
 | 3.7 | session ignore list, tighter topbar cluster | `core/scan.py`, `ui/results_window.py`, `ui/glyphs.py` |
 | 3.8 | right-click to ignore, the list drawn over the backdrop | `ui/results_window.py`, `ui/styles.py` |
+| — | version 0.3, released by tag | `core/config.py`, `README.md`, `README.ru.md` |
 | — | publication prep: two identities in the UA, LICENSE, About window | `core/config.py`, `ui/about.py`, `tests/test_distribution.py` |
 
 380 tests, none of them touching the network:

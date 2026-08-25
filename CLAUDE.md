@@ -1110,7 +1110,7 @@ The exe is published through **Releases**, built by the workflow on a `v*` tag
 therefore one command and nothing else:
 
 ```bash
-git tag -a v0.2 -m "..." && git push origin v0.2
+git tag -a v0.3 -m "..." && git push origin v0.3
 ```
 
 ⚠️ Without a tag the Releases page is **empty while the README links to it**.
