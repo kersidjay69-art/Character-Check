@@ -270,6 +270,41 @@ attributed to drift rather than to the new build. It does not affect the
 conclusion — Defender flags the pynsist binary as well, which shares none of
 those bytes.
 
+#### Confirmed the same evening, on a second independent build
+
+The v0.2 release archive was scanned, then the executable inside it separately.
+
+| file | verdict | engines |
+|---|---|---|
+| `CharacterCheck-win64.zip` (`8d66e646…`) | **0 / 66** | none |
+| `CharacterCheck.exe` from inside it (`89b2c5f6…`) | **2 / 70** | Microsoft `Trojan:Win32/Wacatac.B!ml`, SecureAge `Malicious` |
+
+⚠️ **Scanning the archive is not a measurement of the program.** A clean sheet
+on the zip means only that the engines judged a container; unpack it and the
+same two vendors flag the same file. Anyone reporting "VirusTotal says 0/66"
+about this project is quoting the wrong artifact. Always extract and scan the
+PE.
+
+**But the exe result is the useful part, and it is the strongest data point
+yet.** This build came off a GitHub runner, not the author's machine, with
+different package versions — 4 945 788 bytes against the local build's
+5 625 092, so it is a genuinely different binary from a different environment.
+It draws **exactly the same two engines**. That rules out anything peculiar to
+one machine and confirms the detection is keyed on the shape of the artifact.
+It also settles the drift question the other way: Bkav Pro and Zillya changed
+their minds over four days, but Microsoft and SecureAge agree with themselves
+across two builds on the same day.
+
+(`Wacatac.B!ml` here against `Wacatac.C!ml` in the morning is a variant label
+inside one generic machine-learning family, not a different finding.)
+
+⚠️ **A crowdsourced YARA rule fired: `PyInstaller`, from bartblaze's public
+ruleset**, with its own note that matching it "does NOT necessarily mean the
+detected file is malicious". It is not what causes the Microsoft verdict, but
+it is direct confirmation of the claim in `CLAUDE.md` that a PyInstaller
+binary is trivially identifiable from public signatures — the shape is
+recognised by rules anybody can read.
+
 **Consequences.**
 
 1. `build_pynsist.py` stays as a recorded experiment. **The default build does

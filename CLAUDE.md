@@ -70,12 +70,20 @@ bootloader (ours carries 5 of 5), and on VirusTotal the same day it scored
 Microsoft flagged **both** files `Trojan:Win32/Wacatac.C!ml`. Defender is the
 engine that matters and the bootloader bytes are not what it reacts to.
 
+⚠️ **Scan the exe, never the zip.** The v0.2 release archive scored **0/66**
+while the executable inside it scored **2/70** the same evening. Engines judge
+a container differently, and a clean sheet on the archive says nothing about
+the program. Quoting the zip's number is quoting the wrong artifact.
+
 ⚠️ **And a detection count is not evidence on its own.** Between 2026-08-20 and
 2026-08-24 the count stayed at 2 while not one engine stayed the same: Bkav Pro
 and Zillya both report Undetected now, Microsoft and SecureAge did not flag us
 then. Verdicts drift with engine-roster updates, so a comparison is only worth
 anything when both files are measured on the same day and the **engines are
-named**. Three hypotheses have now been tested — distribution format,
+named**. Held the other way too: the CI-built exe (4 945 788 bytes, different
+package versions) and the locally built one (5 625 092) drew the *same* two
+engines — Microsoft and SecureAge — so that pair is the real current state
+rather than noise, and it is not something peculiar to one machine. Three hypotheses have now been tested — distribution format,
 bootloader bytes, packager — and all three were wrong. The variable is not how
 the Python gets into the PE; the remaining lever is a signature.
 
