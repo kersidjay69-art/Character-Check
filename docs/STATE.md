@@ -38,7 +38,7 @@ cost a live experiment, and the detail is further down this file:
 3. a second interface language — removed on request, and `README.ru.md` is
    documentation rather than interface.
 
-**Two open actions, both the author's rather than the code's:**
+**Three open actions, all the author's rather than the code's:**
 
 - report the Microsoft false positive (`Trojan:Win32/Wacatac.C!ml`) at
   <https://www.microsoft.com/en-us/wdsi/filesubmission>. It is the only engine
@@ -46,7 +46,18 @@ cost a live experiment, and the detail is further down this file:
   the pynsist experiment failed to shift;
 - apply to **SignPath Foundation**. After three failed packaging hypotheses a
   signature is the only lever left, and both of its prerequisites (a public
-  repository, a CI build) have existed since 3.4.
+  repository, a CI build) have existed since 3.4;
+- send the enquiry in `Desktop\CC\CCP-запрос\` — written, never sent. See
+  open question 4 at the foot of this file for why a support ticket is the
+  only channel that yields a written answer.
+
+⚠️ **The 0.3 executable has not been scanned.** The two-engine figure quoted
+throughout this file is the 0.2 build, and a detection count is only worth
+something when both files are measured on the same day with the engines named
+(`CLAUDE.md`, the build section). Nothing about the packaging changed in 0.3,
+so there is no reason to expect movement — but the number has not been
+re-measured and must not be quoted as if it had. Scan the **exe**, never the
+zip.
 
 **Open questions worth reading before touching anything** are at the bottom of
 this file: the 429s in `app.log` versus invariant 3 (still not the experiment
