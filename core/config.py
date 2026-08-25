@@ -28,7 +28,7 @@ import sys
 import threading
 
 APP_NAME = "CharacterCheck"
-VERSION = "0.2"
+VERSION = "0.3"
 
 # The software's identity, the same in every copy. zKillboard's own example
 # UA allows a website ("your name, email, website etc."), and a repository is

@@ -12,7 +12,7 @@ import bisect
 import time
 import webbrowser
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import (QAction, QBrush, QColor, QFont, QPainter, QPen,
                            QPixmap, QPolygon)
 from PySide6.QtWidgets import (
@@ -78,6 +78,12 @@ _FILTER_KEYS = {
     "stop_at_first": "stop_first",
 }
 
+# The scrim behind a label: corner radius, and the padding that decides how
+# far the panel stands off its text.
+_SCRIM_RADIUS = 7
+_SCRIM_PAD_X = 6
+_SCRIM_PAD_Y = 1
+
 _ROLE_URL = Qt.UserRole + 1
 # The pilot name used to be read back out of column 1 by the copy handler.
 # Carrying it in a role instead means the columns can be rearranged without
@@ -85,6 +91,10 @@ _ROLE_URL = Qt.UserRole + 1
 _ROLE_NAME = Qt.UserRole + 2
 # [(type_id, underline_colour_or_None), ...] for the icon delegate.
 _ROLE_ICONS = Qt.UserRole + 3
+# The pilot behind a row, for the ignore list. Read back rather than parsed
+# out of the zKillboard URL beside it, which would work today and break the
+# first time that URL changes shape.
+_ROLE_CHARACTER_ID = Qt.UserRole + 4
 
 
 def _get(f, key, default=None):
@@ -95,6 +105,66 @@ def _get(f, key, default=None):
     if hasattr(f, "kind"):
         return getattr(f, key, default)
     return f[key] if key in f else default
+
+
+def draw_scrim(painter, rect) -> None:
+    """A rounded translucent panel behind one label.
+
+    The results tree is painted over the backdrop now, so every piece of text
+    in it needs something to sit on. Sized to the TEXT and not to the cell: a
+    full-width bar would be a stripe, and stripes are exactly what had to go
+    to let the picture show between the rows.
+
+    ⚠️ The alpha is `styles.SCRIM_ALPHA`, and it is measured rather than
+    chosen -- see the note beside it. Do not nudge it by eye; re-run the
+    contrast check against the artwork's brightest pixel.
+    """
+    if rect.isEmpty():
+        return
+    colour = QColor(styles.SCRIM)
+    colour.setAlphaF(styles.SCRIM_ALPHA)
+    painter.save()
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(colour)
+    painter.drawRoundedRect(rect, _SCRIM_RADIUS, _SCRIM_RADIUS)
+    painter.restore()
+
+
+def scrim_rect(rect, text: str, metrics, align_right: bool = False):
+    """The panel for `text` inside `rect`, padded and vertically centred."""
+    if not text:
+        return QRect()
+    w = metrics.horizontalAdvance(text) + 2 * _SCRIM_PAD_X
+    h = metrics.height() + 2 * _SCRIM_PAD_Y
+    w = min(w, rect.width())
+    x = rect.right() - w if align_right else rect.left()
+    return QRect(x, rect.top() + (rect.height() - h) // 2, w, h)
+
+
+class NameDelegate(QStyledItemDelegate):
+    """Column 0, on a scrim.
+
+    Both kinds of row carry text here -- a pilot's name and, underneath it,
+    "2026-05-03  fitted" on every piece of evidence -- so one delegate covers
+    both. The text itself is still drawn by the base class: the colour, the
+    bold on `cyno` and the elision are all Qt's to get right, and re-drawing
+    the string by hand would be three behaviours to reimplement.
+    """
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        text = opt.text
+        if text:
+            # Where Qt is about to put the text, not where the cell is: the
+            # tree indents children, and a scrim at the cell's left edge would
+            # float away from the evidence line it belongs to.
+            widget = opt.widget
+            style = widget.style() if widget is not None else QApplication.style()
+            area = style.subElementRect(QStyle.SE_ItemViewItemText, opt, widget)
+            draw_scrim(painter, scrim_rect(area, text, opt.fontMetrics))
+        super().paint(painter, option, index)
 
 
 class IconRowDelegate(QStyledItemDelegate):
@@ -255,13 +325,16 @@ class IconRowDelegate(QStyledItemDelegate):
         tail = ("+%d" % (len(spec) - len(slots)) if len(slots) < len(spec)
                 else index.data(Qt.DisplayRole) or "")
         if tail:
+            box = QRect(x + 2, opt.rect.top(), opt.rect.right() - x - 2,
+                        opt.rect.height())
+            # The same panel the name gets. This text is over the backdrop
+            # too, and a hull name lost in the artwork is the half of the
+            # evidence row that says WHAT he flew.
+            draw_scrim(painter, scrim_rect(box, tail, opt.fontMetrics))
             colour = index.data(Qt.ForegroundRole)
             painter.setPen(colour.color() if colour is not None
                            else QColor(styles.TEXT_DIM))
-            painter.drawText(
-                QRect(x + 2, opt.rect.top(), opt.rect.right() - x - 2,
-                      opt.rect.height()),
-                Qt.AlignVCenter | Qt.AlignLeft, tail)
+            painter.drawText(box, Qt.AlignVCenter | Qt.AlignLeft, tail)
         painter.restore()
 
     def _draw_badge(self, painter, box, type_id) -> None:
@@ -306,6 +379,11 @@ class IconRowDelegate(QStyledItemDelegate):
 
 
 class ResultsWindow(QMainWindow):
+    # The session ignore list changed. `TrayApp` forwards it to the scan
+    # worker, which lives on another thread -- a queued signal is how the new
+    # set crosses that boundary safely.
+    ignore_changed = Signal(object)
+
     def __init__(self, sets, on_rescan=None):
         super().__init__()
         self._sets = sets
@@ -314,6 +392,16 @@ class ResultsWindow(QMainWindow):
         self._notice_tip = ""
         self._said = ""
         self._copy_token = None
+        # ⚠️ Session state, and deliberately nowhere else. Not `config.json`,
+        # not `cache.db`: the user asked for a list that clears itself when the
+        # application closes, and the way to guarantee that is to have no code
+        # anywhere that can write it down. Held here rather than in `TrayApp`
+        # because every mutation of it is a click in this window.
+        self._ignored = set()
+        # Every pilot this scan has answered for, clean ones included -- they
+        # never reach the tree, but "ignore everyone I just checked" means all
+        # of them. Filled by `add_pilot`, which does run for clean pilots.
+        self._scanned_ids = []
         self.tree = None
         self._reset_stream()
         self.setWindowTitle("Character Check")
@@ -544,6 +632,24 @@ class ResultsWindow(QMainWindow):
         self.on_top_btn.toggled.connect(self._sync_pin_icon)
         self.on_top_btn.toggled.connect(self._set_on_top)
 
+        # A circled minus, and a menu rather than two buttons. The action has
+        # two scopes -- the rows you selected, and everyone the last paste
+        # checked -- and two unlabelled glyphs cannot say which is which. The
+        # same argument that turned the search filters into a menu.
+        self.ignore_btn = self._icon_button(glyphs.exclude(styles.TEXT_DIM),
+                                            self._show_ignore)
+        self.ignore_menu = QMenu(self)
+        self.ignore_selected_action = QAction("", self)
+        self.ignore_selected_action.triggered.connect(self._ignore_selected)
+        self.ignore_checked_action = QAction("", self)
+        self.ignore_checked_action.triggered.connect(self._ignore_checked)
+        self.ignore_clear_action = QAction("", self)
+        self.ignore_clear_action.triggered.connect(self.clear_ignored)
+        self.ignore_menu.addAction(self.ignore_selected_action)
+        self.ignore_menu.addAction(self.ignore_checked_action)
+        self.ignore_menu.addSeparator()
+        self.ignore_menu.addAction(self.ignore_clear_action)
+
         top = QHBoxLayout()
         top.setContentsMargins(12, 6, 12, 6)
         top.setSpacing(10)
@@ -553,14 +659,29 @@ class ResultsWindow(QMainWindow):
         top.addSpacing(6)
         top.addLayout(self.counts_row)
         top.addStretch(1)
-        # Right to left: the two that change the view, then the two that act.
+
+        # The buttons are their own layout at a tighter gap, so they read as
+        # one cluster instead of seven marks scattered along the bar. 4 px and
+        # not less: a button paints a hover background, and two hover
+        # rectangles that touch read as a single wide box -- the same reason
+        # `IconRowDelegate.GAP` may never drop below `2 * BORDER`.
+        #
+        # The left-hand group keeps the outer 10 px; `top.setSpacing` applies
+        # to everything, so tightening it there would pull the logo into the
+        # title as well.
+        buttons = QHBoxLayout()
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.setSpacing(4)
+        # Right to left: the ones that change the view, then the two that act.
         # The primary action stays rightmost, where the eye ends up.
-        top.addWidget(self.filters_btn)
-        top.addWidget(self.on_top_btn)
-        top.addWidget(self.expand_btn)
-        top.addWidget(self.collapse_btn)
-        top.addWidget(self.clear_btn)
-        top.addWidget(self.rescan_btn)
+        buttons.addWidget(self.filters_btn)
+        buttons.addWidget(self.ignore_btn)
+        buttons.addWidget(self.on_top_btn)
+        buttons.addWidget(self.expand_btn)
+        buttons.addWidget(self.collapse_btn)
+        buttons.addWidget(self.clear_btn)
+        buttons.addWidget(self.rescan_btn)
+        top.addLayout(buttons)
 
         self.topbar = QFrame()
         self.topbar.setObjectName("topbar")
@@ -573,11 +694,17 @@ class ResultsWindow(QMainWindow):
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["PILOT", "MODULES", "SHIPS"])
         self.tree.setRootIsDecorated(True)
-        self.tree.setAlternatingRowColors(True)
+        # ⚠️ Off, and it has to stay off: alternating colours paint an opaque
+        # BG_CARD on every other row, which over the backdrop is a venetian
+        # blind. With a scrim behind every label the stripes have nothing left
+        # to do -- they were a readability aid and the scrim is a better one.
+        self.tree.setAlternatingRowColors(False)
         self.tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tree.setUniformRowHeights(True)
         self.tree.setIndentation(14)
         self.tree.itemDoubleClicked.connect(self._open_link)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._context_menu)
 
         self._icons = get_icon_cache()
         # Two delegates, one per icon column, differing only in the gap.
@@ -590,6 +717,8 @@ class ResultsWindow(QMainWindow):
             self._icons, self._type_name, self._sets.meta_group, self.tree,
             gap=IconRowDelegate.GAP_TIGHT)
         self._delegates = (self._delegate, self._ship_delegate)
+        self._name_delegate = NameDelegate(self.tree)
+        self.tree.setItemDelegateForColumn(_COL_NAME, self._name_delegate)
         self.tree.setItemDelegateForColumn(_COL_MODULES, self._delegate)
         self.tree.setItemDelegateForColumn(_COL_SHIPS, self._ship_delegate)
         self._icons.icon_ready.connect(self._on_icon_ready)
@@ -655,6 +784,7 @@ class ResultsWindow(QMainWindow):
         self.copy_action.setShortcut("Ctrl+C")
         self.copy_action.triggered.connect(self._copy_selected)
         self.addAction(self.copy_action)
+        self._sync_ignore()
         self._label_widgets()
         return central
 
@@ -676,14 +806,18 @@ class ResultsWindow(QMainWindow):
         it would cover the picture. `test_ui_window.TestBackground` is what
         holds this honest: no part of the window may end up unpainted.
 
-        The picture is drawn only when the list is empty. That is the whole
-        feature -- what an idle window shows instead of a flat rectangle --
-        and it means no pilot's name is ever read against artwork.
+        ⚠️ The picture is drawn ALWAYS, and it used to be drawn only on an
+        empty list. The old rule was "a name must never be read against
+        artwork"; the new one is that it is never read against BARE artwork --
+        every label in the tree is painted on a rounded translucent panel
+        (`draw_scrim`), whose alpha was measured against the brightest pixel
+        the backdrop contains. Removing the scrim without restoring the
+        emptiness test here would leave the names sitting on the station.
         """
         view = self.tree.viewport()
         painter = QPainter(view)
         painter.fillRect(view.rect(), QColor(styles.BG_PANEL))
-        if self._backdrop is not None and self.tree.topLevelItemCount() == 0:
+        if self._backdrop is not None:
             painter.drawPixmap(0, 0, self._cover(view.width(), view.height()))
         painter.end()
 
@@ -811,6 +945,137 @@ class ResultsWindow(QMainWindow):
         self.filters_menu.exec(
             self.filters_btn.mapToGlobal(self.filters_btn.rect().bottomLeft()))
 
+    # --- the session ignore list ------------------------------------------
+
+    def ignored_ids(self) -> frozenset:
+        """A snapshot, for handing to a scan running on another thread."""
+        return frozenset(self._ignored)
+
+    def _show_ignore(self) -> None:
+        """Label the menu at the moment it opens, then show it.
+
+        The counts change on every scan and every selection, so writing them
+        once at construction would leave three stale numbers on screen. Doing
+        it here means they are computed exactly when somebody looks.
+        """
+        selected = len(self._selected_ids())
+        self.ignore_selected_action.setText(
+            i18n.t("btn.ignore_selected", selected))
+        self.ignore_selected_action.setEnabled(bool(selected))
+        checked = len(set(self._scanned_ids) - self._ignored)
+        self.ignore_checked_action.setText(
+            i18n.t("btn.ignore_checked", checked))
+        self.ignore_checked_action.setEnabled(bool(checked))
+        self.ignore_clear_action.setText(
+            i18n.t("btn.ignore_clear", len(self._ignored))
+            if self._ignored else i18n.t("btn.ignore_empty"))
+        self.ignore_clear_action.setEnabled(bool(self._ignored))
+        self.ignore_menu.exec(
+            self.ignore_btn.mapToGlobal(self.ignore_btn.rect().bottomLeft()))
+
+    @staticmethod
+    def _pilot_of(item):
+        """The pilot row behind any row.
+
+        Evidence rows are children and carry no pilot of their own, so a click
+        on a killmail line means the pilot it sits under. One function because
+        both the selection and the right-click menu need the same climb, and
+        two copies of it would drift.
+        """
+        if item is None:
+            return None
+        return item if item.parent() is None else item.parent()
+
+    @classmethod
+    def _pilot_id_of(cls, item):
+        row = cls._pilot_of(item)
+        return None if row is None else row.data(_COL_NAME,
+                                                 _ROLE_CHARACTER_ID)
+
+    def _selected_ids(self) -> list:
+        """Character ids of the selected rows, de-duplicated."""
+        out = []
+        for item in self.tree.selectedItems():
+            cid = self._pilot_id_of(item)
+            if cid and cid not in out:
+                out.append(cid)
+        return out
+
+    def _context_menu(self, pos) -> None:
+        """Right-click a pilot to drop him from the scan.
+
+        ⚠️ Two rules, and both are about not surprising anyone. If the row
+        under the cursor is part of the current selection, the whole selection
+        is meant -- otherwise right-clicking one name would quietly act on
+        three highlighted a minute ago. If it is NOT in the selection, only
+        that row is meant, and the selection is left exactly as it was: a
+        right-click that moves the highlight is the other half of the same
+        surprise.
+        """
+        target = self._ignore_target(self.tree.itemAt(pos))
+        if target is None:
+            return                       # empty space has nothing to act on
+        ids, caption = target
+        menu = QMenu(self)
+        act = QAction(caption, menu)
+        act.triggered.connect(lambda: self._add_ignored(ids))
+        menu.addAction(act)
+        menu.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _ignore_target(self, item):
+        """`(ids, caption)` for a right-click on `item`, or None.
+
+        Split out of `_context_menu` so it can be tested: exercising the menu
+        itself would mean `exec()`, which blocks on a modal popup and cannot
+        be driven from a test.
+        """
+        row = self._pilot_of(item)
+        cid = self._pilot_id_of(item)
+        if not cid:
+            return None
+        selected = self._selected_ids()
+        if cid in selected and len(selected) > 1:
+            return selected, i18n.t("btn.ignore_selected", len(selected))
+        return [cid], i18n.t("btn.ignore_one",
+                             row.data(_COL_NAME, _ROLE_NAME) or "")
+
+    def _ignore_selected(self) -> None:
+        self._add_ignored(self._selected_ids())
+
+    def _ignore_checked(self) -> None:
+        self._add_ignored(self._scanned_ids)
+
+    def _add_ignored(self, ids) -> None:
+        before = len(self._ignored)
+        self._ignored.update(int(i) for i in ids if i)
+        if len(self._ignored) != before:
+            self._after_ignore_change()
+
+    def clear_ignored(self) -> None:
+        """Empty the list. Also what happens for free when the process ends."""
+        if self._ignored:
+            self._ignored.clear()
+            self._after_ignore_change()
+
+    def _after_ignore_change(self) -> None:
+        """Tint the button, tell the worker, and redraw what is on screen.
+
+        Redrawing rather than rescanning: the answers for these pilots are
+        already in hand, and spending requests to remove rows would be
+        backwards. The rows come back on Clear-ignore-list for the same
+        reason -- `_render` filters, it does not discard.
+        """
+        self._sync_ignore()
+        self.ignore_changed.emit(self.ignored_ids())
+        if self._last_result is not None:
+            self._render(self._last_result)
+
+    def _sync_ignore(self) -> None:
+        # Accented while anything is ignored. A filter that silently removes
+        # pilots has to say so from the topbar, exactly as the funnel does.
+        self.ignore_btn.setIcon(glyphs.exclude(
+            styles.ACCENT if self._ignored else styles.TEXT_DIM))
+
     def _sync_filters(self) -> None:
         """Put the menu and the funnel in step with what is actually stored.
 
@@ -914,6 +1179,8 @@ class ResultsWindow(QMainWindow):
             i18n.t("btn.on_top"), i18n.t("btn.on_top_tip")))
         self.filters_btn.setToolTip("%s\n\n%s" % (i18n.t("btn.filters"),
                                                   i18n.t("filter.tip")))
+        self.ignore_btn.setToolTip("%s\n\n%s" % (i18n.t("btn.ignore"),
+                                                 i18n.t("ignore.tip")))
         for key, act in self.filter_actions.items():
             act.setText(i18n.t("filter." + _FILTER_KEYS[key]))
         self.copy_action.setText(i18n.t("action.copy_names"))
@@ -987,6 +1254,7 @@ class ResultsWindow(QMainWindow):
         STAGE_SCANNING would otherwise raise on `self._stream_done`.
         """
         self._last_result = None
+        self._scanned_ids = []
         self._stream_keys = []
         self._stream_counts = {}
         self._stream_total = max(0, int(total))
@@ -1017,6 +1285,9 @@ class ResultsWindow(QMainWindow):
         when both orders are defensible.
         """
         self._stream_done += 1
+        # Every pilot, clean ones included: they never reach the tree, but
+        # "ignore everyone I just checked" has to mean everyone.
+        self._scanned_ids.append(int(p.character_id))
         self._stream_counts[p.level] = self._stream_counts.get(p.level, 0) + 1
         self._set_counts(self._stream_counts)
         if p.level != analyze.LEVEL_NONE:
@@ -1052,8 +1323,19 @@ class ResultsWindow(QMainWindow):
     def _render(self, result) -> None:
         self.tree.clear()
 
+        # The ignore list is applied on READ, never by discarding rows from
+        # `result`. Ignoring is reversible -- Clear brings everyone back, from
+        # answers already in hand, without spending a single request.
+        #
+        # A scan that ran with the list already set never fetched these pilots
+        # at all (`scan.scan_text` drops them before the cache), so this filter
+        # only ever bites on the results that were on screen when the user
+        # pressed Ignore.
+        hidden = self._ignored
+        pilots = [p for p in result.pilots if p.character_id not in hidden]
+
         counts = {}
-        for p in result.pilots:
+        for p in pilots:
             counts[p.level] = counts.get(p.level, 0) + 1
         self._set_counts(counts)
 
@@ -1062,9 +1344,12 @@ class ResultsWindow(QMainWindow):
             bits.append(i18n.t("status.own") + ", ".join(result.own_seen))
         if result.unresolved:
             bits.append(i18n.t("status.unresolved", len(result.unresolved)))
+        gone = getattr(result, "ignored", 0) + (len(result.pilots) - len(pilots))
+        if gone:
+            bits.append(i18n.t("status.ignored", gone))
         self._say("   ·   ".join(bits))
 
-        flagged = result.flagged
+        flagged = [p for p in result.flagged if p.character_id not in hidden]
         for p in flagged:
             self.tree.addTopLevelItem(self._pilot_item(p))
         # Deliberately never auto-expanded: the collapsed row already answers
@@ -1113,6 +1398,7 @@ class ResultsWindow(QMainWindow):
         item.setData(0, _ROLE_URL,
                      "https://zkillboard.com/character/%d/" % p.character_id)
         item.setData(0, _ROLE_NAME, p.name)
+        item.setData(0, _ROLE_CHARACTER_ID, int(p.character_id))
         # A cached row says when it was last checked: the cache never expires
         # a positive, so without the date there is no way to tell an answer
         # from this minute apart from one from last month.

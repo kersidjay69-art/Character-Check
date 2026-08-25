@@ -1,7 +1,7 @@
 """Small vector icons for the topbar buttons: chevrons, a pushpin, a funnel,
-a circular refresh arrow and a waste bin.
+a circular refresh arrow, a waste bin and a circled minus.
 
-Drawn rather than shipped. Five glyphs do not justify carrying image files
+Drawn rather than shipped. Six glyphs do not justify carrying image files
 around, and drawing them means they take the palette colour -- the same reason
 the tech-tier wedge in `results_window` is painted instead of downloaded.
 
@@ -181,4 +181,30 @@ def trash(colour: str, size: int = 16) -> QIcon:
 
     p.drawLine(QPointF(6.9, 7.2), QPointF(7.1, 12.0))       # the ribs
     p.drawLine(QPointF(9.1, 7.2), QPointF(8.9, 12.0))
+    return _finish(pix, p, size)
+
+
+def exclude(colour: str, size: int = 16) -> QIcon:
+    """A circle with a minus: the session ignore list.
+
+    "Take these out of the results", not "these are forbidden". A prohibition
+    sign -- the same circle with a DIAGONAL bar -- reads just as clearly and
+    was rejected for what it says: these pilots were checked and the answer is
+    being set aside, not refused.
+
+    ⚠️ An eye with a stroke through it was the first choice and does not
+    survive 16 px. Four variants were rendered side by side at actual size: a
+    stroked almond, a filled almond, a filled almond with the pupil cut out,
+    and this. All three eyes collapsed into an orange smudge with a diagonal
+    on it, because an almond plus a pupil plus a cut plus a bar is four
+    features inside sixteen pixels. The circle survives because it is one.
+    Do not try the eye again without rendering it first.
+    """
+    pix, p = _canvas(size)
+    pen = QPen(QColor(colour), 1.9)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    p.drawEllipse(QPointF(8.0, 8.0), 5.6, 5.6)
+    p.drawLine(QPointF(5.0, 8.0), QPointF(11.0, 8.0))
     return _finish(pix, p, size)

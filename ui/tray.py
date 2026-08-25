@@ -63,9 +63,20 @@ class ScanWorker(QObject):
     def __init__(self):
         super().__init__()
         self._own = ()
+        self._ignored = frozenset()
 
     def set_own(self, names) -> None:
         self._own = tuple(names)
+
+    def set_ignored(self, ids) -> None:
+        """The session ignore list, pushed in from the window.
+
+        Pushed rather than pulled: this object lives on the scan thread and
+        must never reach into a widget. A frozenset is rebound in one
+        assignment, the same shape as `set_own`, so a scan already running
+        finishes with the list it started under instead of changing halfway.
+        """
+        self._ignored = frozenset(ids)
 
     def scan(self, text: str) -> None:
         # Read fresh every time: the search filters live in config.json and
@@ -76,7 +87,8 @@ class ScanWorker(QObject):
             result = scan.scan_text(
                 text, own_names=self._own, cfg=cfg,
                 on_result=self.pilot_ready.emit,
-                on_stage=self.stage_changed.emit)
+                on_stage=self.stage_changed.emit,
+                ignore_ids=self._ignored)
         except Exception:
             log.exception("scan failed")
             return
@@ -118,6 +130,9 @@ class TrayApp(QObject):
         self._thread = QThread()
         self.worker = ScanWorker()
         self.worker.set_own(self.own)
+        # Queued across the thread boundary by Qt, which is the whole reason
+        # this is a signal rather than the worker reading the window.
+        self.window.ignore_changed.connect(self.worker.set_ignored)
         self.worker.moveToThread(self._thread)
         self._thread.start()
         self._text_ready.connect(self.worker.scan)

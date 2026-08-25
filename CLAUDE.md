@@ -16,7 +16,7 @@ python -m core.console --once F --no-industrial --all-cyno
 python sde/build_cyno_sets.py                # rebuild the cyno sets from the SDE
 python assets/make_background.py SRC.jfif    # rebuild assets/background.png (needs cv2)
 python stats/collect.py                      # snapshot GitHub traffic -> stats/*.csv
-python -m unittest discover -s tests         # 351 tests, none touching the network
+python -m unittest discover -s tests         # 380 tests, none touching the network
 python build.py --dest "C:/somewhere"        # build -> dist/CharacterCheck/
 python build.py --onefile                    # one file instead of a folder
 python build_pynsist.py                      # the antivirus EXPERIMENT, not the build
@@ -285,7 +285,7 @@ ui/              Qt lives only here
   tray.py        tray icon and the scan thread (no notifications)
   results_window.py  result tree, expansion into evidence, icon delegate
   icon_cache.py  PNG -> QPixmap, fetching off the GUI thread, icon_ready
-  glyphs.py      chevron, pin, funnel, refresh, bin -- drawn, not files
+  glyphs.py      chevron, pin, funnel, refresh, bin, circled minus
   about.py       the author's contacts -- the only place (invariant 7)
   assets.py      loads the two PNGs at runtime, frozen or not
   single_instance.py  QLocalServer guard: one copy at a time
@@ -756,6 +756,61 @@ means "filter". A tilted pin with a ball head is unambiguous. That very funnel
 is now drawn separately and stands where it belongs — it is the search-filters
 button; the pin's rejection is the argument for it.
 
+**Right-click a pilot to ignore him**, as well as the topbar menu. ⚠️ Two
+rules, both about not surprising anyone: a click on a row that is part of the
+current selection means the whole selection, a click outside it means that row
+alone — and either way the selection is left exactly as it was. A right-click
+that silently re-highlights is the same class of surprise as one that acts on
+names highlighted a minute ago. The decision lives in `_ignore_target`, split
+out from the menu so it can be tested: the menu itself ends in `exec()`, which
+blocks on a modal popup.
+
+**The session ignore list.** Your own fleet is not the threat, and after one
+paste it is noise in every local for the rest of the evening. The circled-minus
+button holds a menu: ignore the selected rows, ignore everyone the last paste
+checked, or empty the list.
+
+⚠️ **It is applied in `scan.scan_text`, before the cache read**, not by hiding
+rows. That is the whole point: an ignored pilot costs no cache lookup and no
+zKillboard request, so a forty-strong fleet becomes free rather than fetched
+and discarded. `_stage(STAGE_SCANNING)` reports the count after the filter —
+"checked 3 of 12" has to mean twelve pilots somebody will actually look at.
+
+⚠️ **It is session state and nothing may ever write it down.** Not
+`config.json`, not `cache.db`. The user asked for a list that clears itself
+when the application closes, and the only way to guarantee that is for no code
+to be able to persist it. `test_ui_window` asserts that saving the config after
+ignoring adds no key. It survives closing the window — that only hides to the
+tray — and dies with the process.
+
+⚠️ The window owns the set; the scan worker is on another thread and must never
+read a widget, so `ResultsWindow.ignore_changed` pushes a frozenset to
+`ScanWorker.set_ignored`, the same shape as `set_own`. A scan already running
+finishes under the list it started with.
+
+⚠️ **`_render` filters on read and never discards.** Clearing the list brings
+everyone back from answers already in hand; discarding would make undo cost a
+fresh scan of the whole paste.
+
+⚠️ **An all-ignored paste is a successful empty result, not a refusal.** A
+refusal prints "skipped:" and means the paste was junk.
+
+**The topbar buttons live in their own layout at 4 px**, not the bar's 10.
+Measured: seven buttons at 4 px come to the same 283 px as six at 10, so the
+new button cost nothing. Not less than 4 — a button paints a hover background
+and two touching hover rectangles read as one wide box, the same reason
+`IconRowDelegate.GAP` may not drop below `2 * BORDER`. The outer 10 px stays
+for the logo and title, which is why the buttons needed a layout of their own.
+
+⚠️ **The glyph is a circled minus and the eye was measured and rejected.** An
+eye with a stroke through it is what "hidden" normally looks like, and at 16 px
+it does not survive: four variants were rendered at actual size and every eye
+collapsed into an orange smudge with a diagonal on it, because an almond plus a
+pupil plus a cut plus a bar is four features inside sixteen pixels. Do not try
+it again without rendering it first. A circle with a *diagonal* bar reads just
+as well and was rejected for meaning: these pilots were checked and set aside,
+not forbidden.
+
 **Filters are a menu under the funnel, not three buttons in a row.** Three
 abstract 16×16 glyphs would repeat the pin's mistake, and three text captions
 would eat half the header. A menu gives full phrases for free. The funnel is
@@ -885,14 +940,41 @@ filter therefore fills the opaque base colour itself and returns `False` so the
 tree still draws its rows. That base fill is also what keeps
 `test_ui_window.TestBackground` honest rather than accidentally passing.
 
-⚠️ **Only when empty**, and that is the feature rather than a limitation: a
-pilot's name carries the verdict in its colour, and a name must never be read
-against artwork. Nothing in the window watches the row count — the model's own
-repaint redraws the viewport, which is why Clear brings the picture back with
-no wiring at all. A first version toggled `alternatingRowColors` on emptiness,
-on the theory that QTreeView carries its stripes down past the last row.
-**Measured: it does not.** The mechanism was deleted rather than kept with an
-invented justification.
+⚠️ **It is painted ALWAYS, and this reverses what was written here before.**
+The rule used to be "only when the list is empty, because a name must never be
+read against artwork". The rule now is that a name is never read against
+**bare** artwork: every label in the tree sits on its own rounded translucent
+panel (`draw_scrim`). The picture stays behind the results, which is what was
+asked for — the alternative was taking it away the moment anything was found,
+i.e. never seeing it.
+
+⚠️ **The scrim's alpha is measured, not chosen.** `styles.SCRIM_ALPHA` is 0.80
+over `BG_DEEP`, composited against the brightest pixel the artwork actually
+contains — `(152, 119, 76)`, in the station's wireframe. That leaves the
+tightest of the tree's colours, `RED` (`cyno`), at **4.55:1**; the others land
+at 4.89 (`TEXT_DIM`), 6.00 (`BLUE`), 9.31 (`YELLOW`) and 10.74 (`TEXT`). Below
+0.80 the red drops under 4.5. `GREY` is deliberately not in that list: it is
+the `none` level and clean pilots are never listed.
+
+⚠️ **Four things carry text over the picture, not one.** The pilot's name and
+the evidence line are column 0 (`NameDelegate`); the hull name beside an
+evidence icon and the `+N` overflow marker are the `tail` inside
+`IconRowDelegate`. All four call the same `draw_scrim`. Miss one and expanding
+a pilot produces an unreadable list.
+
+The panel is sized to the **text**, never to the cell — a full-width panel is a
+stripe, and stripes are exactly what had to go.
+
+⚠️ **`alternatingRowColors` is off and must stay off**, and hover and selection
+in the QSS are `rgba()` rather than solid. All three paint an opaque row
+background, which over a picture is a venetian blind or a black bar.
+
+Nothing in the window watches the row count — the model's own repaint redraws
+the viewport, which is why Clear leaves the picture in place with no wiring at
+all. A first version toggled `alternatingRowColors` on emptiness, on the theory
+that QTreeView carries its stripes down past the last row. **Measured: it does
+not.** That mechanism was deleted rather than kept with an invented
+justification.
 
 **The window can be made see-through** — a slider in the footer, 50–100%,
 `setWindowOpacity`. Taken from PySpy, which sits beside the game client the
@@ -1044,12 +1126,13 @@ daily figure, and counts bots along with people.
 
 ## Status
 
-Phases 1 through 3.6 are complete: the core, the console, the tray, the results
-window, and the window's own identity (amber accent, the idle backdrop, opacity,
-one instance at a time). The project is published at
+Phases 1 through 3.8 are complete: the core, the console, the tray, the results
+window, the window's own identity (amber accent, the backdrop, opacity, one
+instance at a time), the session ignore list, and the scrim that lets the
+picture stay behind the results. The project is published at
 <https://github.com/kersidjay69-art/Character-Check> (invariant 7, `LICENSE`,
 `ui/about.py`), and CI builds the executable from source with provenance on
-every `v*` tag. `config.VERSION` is **0.2**.
+every `v*` tag. `config.VERSION` is **0.3**.
 
 Three things are settled and must not be reopened without new data: the
 antivirus counter (three measured failures — format, bootloader, packager),

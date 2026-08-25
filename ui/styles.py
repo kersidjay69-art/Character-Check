@@ -296,18 +296,20 @@ QTreeWidget::item, QTreeView::item {{
     min-height: {ROW_H}px;
 }}
 
+/* Translucent, because the artwork is behind the rows now. Opaque here
+   would black out a strip of the picture under the cursor. */
 QTreeWidget::item:hover, QTreeView::item:hover {{
-    background: {BG_CARD};
+    background: {HOVER_RGBA};
 }}
 
 /* Background only. Recolouring the text here would repaint the pilot's name
    in the accent colour, and the name's colour IS the verdict. */
 QTreeWidget::item:selected, QTreeView::item:selected {{
-    background: {SELECT_BG};
+    background: {SELECT_RGBA};
 }}
 
 QTreeWidget::branch:hover {{
-    background: {BG_CARD};
+    background: {HOVER_RGBA};
 }}
 
 QHeaderView::section {{
@@ -435,11 +437,35 @@ QCheckBox::indicator:checked {{
 """
 
 
+def rgba(colour: str, alpha: float) -> str:
+    """`#rrggbb` plus an alpha, as CSS. Qt style sheets accept rgba().
+
+    Needed because the results tree now sits on a picture: an opaque row
+    background blanks a strip of it, and hover and selection still have to
+    read as feedback.
+    """
+    c = colour.lstrip("#")
+    return "rgba(%d, %d, %d, %.2f)" % (
+        int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), alpha)
+
+
+# What sits behind a label drawn over the backdrop. ⚠️ Measured, not chosen:
+# composited over the brightest pixel the artwork actually contains --
+# (152, 119, 76), in the station's wireframe -- BG_DEEP at 0.80 leaves the
+# tightest of the tree's colours, RED `cyno`, at 4.55:1. The others land at
+# 4.89 (TEXT_DIM), 6.00 (BLUE), 9.31 (YELLOW) and 10.74 (TEXT). Below 0.80 the
+# red drops under 4.5 and the scrim stops doing its job. `GREY` is not in that
+# list on purpose: it is the `none` level and clean pilots are never listed.
+SCRIM = BG_DEEP
+SCRIM_ALPHA = 0.80
+
+
 def _build_qss() -> str:
     return _QSS_TEMPLATE.format(
         BG_DEEP=BG_DEEP, BG_PANEL=BG_PANEL, BG_CARD=BG_CARD, BG_HEADER=BG_HEADER,
         BORDER=BORDER, BORDER_LT=BORDER_LT, ACCENT=ACCENT, ACCENT2=ACCENT2,
         TEXT=TEXT, TEXT_DIM=TEXT_DIM, SELECT_BG=SELECT_BG,
+        HOVER_RGBA=rgba(BG_CARD, 0.55), SELECT_RGBA=rgba(SELECT_BG, 0.80),
         PRIMARY_BG=PRIMARY_BG, PRIMARY_BG_HOVER=PRIMARY_BG_HOVER,
         ROW_H=ROW_H,
     )

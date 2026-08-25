@@ -104,6 +104,9 @@ class ScanResult:
     # shifts `pilots` and `own_seen` into the wrong slots.
     reason_key: str = ""
     reason_args: tuple = ()
+    # How many pilots the session ignore list took out. Needed only so the
+    # window can say so: a scan that silently drops half a paste looks broken.
+    ignored: int = 0
 
     def at_least(self, min_level: str = analyze.LEVEL_INDY) -> list:
         """Pilots at or above a level, most dangerous first.
@@ -229,12 +232,17 @@ def scan_pilot(character_id: int, name: str, sets, max_pages: int,
 
 def scan_text(text: str, own_names=(), cfg: dict | None = None,
               on_result=None, use_cache: bool = True,
-              on_stage=None) -> ScanResult:
+              on_stage=None, ignore_ids=()) -> ScanResult:
     """The whole pipeline.
 
     `on_result` is called once per pilot as answers land, `on_stage(stage, n)`
     when the pipeline reaches a point worth putting on screen. Neither fires on
     a refusal: junk in the clipboard is the normal case and must stay silent.
+
+    `ignore_ids` is the session ignore list -- character ids the user has said
+    are their own people. It is passed in rather than read from anywhere,
+    because it is not settings: it lives for the lifetime of one run of the
+    application and is deliberately never written to disk.
     """
     cfg = cfg or config.load()
     started = time.time()
@@ -257,6 +265,20 @@ def scan_text(text: str, own_names=(), cfg: dict | None = None,
 
     unresolved = tuple(n for n in verdict.names if n.casefold() not in resolved)
     pilots = [(cid, nm) for cid, nm in resolved.values()]
+
+    # The ignore list is applied HERE, and where it is applied is the whole
+    # point. An ignored pilot is dropped before the cache is consulted and
+    # before a single request is queued, so a forty-strong fleet costs nothing
+    # for the rest of the session rather than being fetched and then hidden.
+    # It also keeps the progress line honest: "checked 3 of 12" has to mean
+    # twelve pilots somebody is actually going to look at.
+    ignored = 0
+    if ignore_ids:
+        ignore_ids = frozenset(ignore_ids)
+        kept = [(cid, nm) for cid, nm in pilots if cid not in ignore_ids]
+        ignored = len(pilots) - len(kept)
+        pilots = kept
+
     _stage(on_stage, STAGE_SCANNING, len(pilots))
 
     max_pages = max(1, int(cfg.get("list_pages", 1)))
@@ -309,7 +331,7 @@ def scan_text(text: str, own_names=(), cfg: dict | None = None,
             out.extend(ex.map(work, pending))
 
     return ScanResult(True, verdict.mode, "", out, verdict.own_seen,
-                      unresolved, time.time() - started)
+                      unresolved, time.time() - started, ignored=ignored)
 
 
 def _stage(on_stage, stage: str, n: int) -> None:

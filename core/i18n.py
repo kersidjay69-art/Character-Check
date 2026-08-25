@@ -70,6 +70,18 @@ EN = {
     "filter.tip": "What to look for. With \"potential cyno\" off a scan asks\n"
                   "zKillboard once per pilot instead of twice, because module\n"
                   "evidence only ever comes from the pilot's own losses.",
+    "btn.ignore": "Ignore list",
+    "btn.ignore_one": "Ignore %s",
+    "btn.ignore_selected": "Ignore the %d selected",
+    "btn.ignore_checked": "Ignore all %d just checked",
+    "btn.ignore_clear": "Clear the ignore list (%d)",
+    "btn.ignore_empty": "Nothing ignored",
+    "ignore.tip": "Pilots to leave out of every scan -- your own fleet,\n"
+                  "usually. They cost no requests at all while ignored,\n"
+                  "and the list is forgotten when the application exits.\n"
+                  "It survives closing the window to the tray.",
+    "status.ignored": "%d ignored",
+    "status.all_ignored": "all %d pilots are on the ignore list",
     "btn.on_top": "Always on top",
     "btn.on_top_tip": "Keep this window above the others. EVE in fullscreen "
                       "paints over everything,\nso this only helps in "

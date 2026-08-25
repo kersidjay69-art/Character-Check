@@ -59,9 +59,11 @@ whether this is allowed at all.
 | 3.5 | English only, no notifications, contacts footer, window logo, square action buttons | `core/i18n.py`, `ui/tray.py`, `ui/assets.py`, `ui/results_window.py` |
 | 3.6 | amber accent, window transparency, one instance only, the idle backdrop | `ui/styles.py`, `ui/single_instance.py`, `assets/make_background.py` |
 | — | version 0.2, released by tag | `core/config.py`, `.github/workflows/ci.yml` |
+| 3.7 | session ignore list, tighter topbar cluster | `core/scan.py`, `ui/results_window.py`, `ui/glyphs.py` |
+| 3.8 | right-click to ignore, the list drawn over the backdrop | `ui/results_window.py`, `ui/styles.py` |
 | — | publication prep: two identities in the UA, LICENSE, About window | `core/config.py`, `ui/about.py`, `tests/test_distribution.py` |
 
-351 tests, none of them touching the network:
+380 tests, none of them touching the network:
 `python -m unittest discover -s tests`.
 
 Verified live: 60 hub names in both modes (8.6 s / 15.3 s, the reds match), 12
@@ -319,6 +321,93 @@ recognised by rules anybody can read.
 4. The false-positive report to send is now **Microsoft's**, not Bkav's:
    <https://www.microsoft.com/en-us/wdsi/filesubmission>. Still the user's to
    send.
+
+### Phase 3.8 (2026-08-24) — the list sits on the picture now
+
+**Right-click a pilot → Ignore**, beside the topbar menu shipped an hour
+earlier. Reaching for the header to dismiss the pilot you are looking at is the
+wrong distance.
+
+⚠️ Two rules, both about not surprising anyone: a click inside the current
+selection means the whole selection, a click outside it means that one row —
+and neither moves the selection. `_ignore_target` holds the decision, split out
+of the menu because the menu ends in `exec()` and a modal popup cannot be
+driven from a test.
+
+**The backdrop stays visible while results are on screen**, and this reverses a
+decision recorded in `CLAUDE.md` in as many words: *"a name must never be read
+against artwork"*. It now reads "never against **bare** artwork" — every label
+in the tree is painted on a rounded translucent panel. The old rule cost the
+picture the moment anything was found, which in practice meant never seeing it.
+
+⚠️ **The alpha was measured, not chosen.** Composited against the brightest
+pixel the artwork contains, `(152, 119, 76)` in the station's wireframe,
+`BG_DEEP` at 0.80 leaves `RED` — the tightest of the tree's colours — at
+**4.55:1**, with `TEXT_DIM` 4.89, `BLUE` 6.00, `YELLOW` 9.31, `TEXT` 10.74.
+At 0.75 the red falls to 4.21 and misses. `GREY` was excluded on purpose: it is
+the `none` level and clean pilots never enter the tree, so measuring against it
+would have forced a darker scrim for text that cannot appear.
+
+⚠️ **Four things carry text over the picture, not one** — the name, the
+evidence line, the hull name beside an evidence icon, and the `+N` overflow
+marker. The first two are a new `NameDelegate` on column 0; the last two are
+the `tail` inside `IconRowDelegate`. Missing any one of them makes expanding a
+pilot produce an unreadable list.
+
+**Three settings had to give way**, all of which paint an opaque row
+background: `alternatingRowColors` is off for good, and hover and selection in
+the QSS became `rgba()`. Over a picture, stripes are a venetian blind and a
+hover is a black bar.
+
+⚠️ `test_ui_window` had a test named
+`test_rows_get_a_flat_panel_and_not_artwork` enforcing the old rule. It was
+**inverted rather than deleted**, and its docstring now says which way round it
+used to be — so the next reader meets the reversal instead of guessing at it.
+
+369 → 380 tests.
+
+### Phase 3.7 (2026-08-24) — the session ignore list
+
+Your own fleet is not the threat. Paste it once, press ignore, and those pilots
+are out of every scan until the list is cleared or the application exits.
+
+**It is applied inside `scan.scan_text`, before the cache read**, not by hiding
+rows — an ignored pilot costs no cache lookup and no zKillboard request. The
+progress line counts what will actually be scanned.
+
+**Nothing anywhere may write it down.** Session state only: not `config.json`,
+not `cache.db`. That is not a detail, it is the requirement — the user asked
+for a list that clears itself, and the guarantee is the absence of any code
+that could persist it. A test asserts that saving the config after ignoring
+adds no key. Closing the window only hides it to the tray, so the list
+survives that and dies with the process.
+
+**One button with a menu, not two buttons.** The width argument for this was
+wrong and is worth recording as such: at 4 px spacing two buttons come to 305,
+under the 325 floor set by the contacts footer, so width never decided it. The
+menu earns its place because the action has two scopes — the selected rows and
+everyone the last paste checked — and two unlabelled glyphs cannot say which is
+which.
+
+**The topbar buttons moved into their own layout at 4 px.** Measured: seven
+buttons at 4 px come to the same 283 px as six at 10, so the new button was
+free. The outer 10 px stays for the logo and the title.
+
+⚠️ **The eye glyph was measured and rejected.** "Hidden" is normally an eye
+with a stroke through it, and at 16 px it does not survive — four variants were
+rendered at actual size and all three eyes collapsed into a smudge with a
+diagonal on it. A circled minus reads instantly. A circle with a *diagonal* bar
+reads just as well and was rejected for what it says: these pilots were checked
+and set aside, not forbidden.
+
+⚠️ **A note for whoever edits this project through a shell.** Three separate
+times this session a newline escape written inside a heredoc reached the file
+as a real newline and produced an unterminated string literal — and the fourth
+time was this very paragraph, which had to be repaired after describing the
+problem. Build such escapes with `chr(92)`, or use an editing tool. Do not put
+backslash escapes in a heredoc here.
+
+351 → 369 tests.
 
 ### Phase 3.6 (2026-08-24) — the app's own colours, and one measured refusal
 
@@ -765,9 +854,9 @@ window, a hotkey.
 
 **Looked at in PySpy and not taken this round** (so they are not re-derived
 from scratch): corporation and alliance columns with a count of how many of
-that corp are in the paste; a temporary "NPSI fleet" ignore list; zKillboard
-deep links that know which column was clicked; a once-a-day GitHub release
-check. None was rejected on merit — they are simply not what was asked for.
+that corp are in the paste; zKillboard deep links that know which column was
+clicked; a once-a-day GitHub release check. The temporary "NPSI fleet" ignore
+list was on this list and **was built in 3.7**. None was rejected on merit — they are simply not what was asked for.
 ⚠️ PySpy's central backend is the one thing deliberately **not** taken: it
 requires a server, its data is a nightly dump about a day stale, and its
 original host answers 404 today. A mini-app that depends on somebody's VPS
@@ -861,6 +950,16 @@ the README.
 ---
 
 ## Loose ends from earlier sessions
+
+- ⚠️ **`ui/icon_cache.py` can print a traceback on shutdown.** Noticed
+  2026-08-24 while rendering the scrim, and it is **not** new -- that file has
+  not changed since 0.1. `_IconJob.run` ends in
+  `self._cache._delivered.emit(...)`, and if the QObject has been torn down
+  while a fetch is still in flight Qt raises `RuntimeError: Signal source has
+  been deleted`. Harmless -- the process is ending anyway -- but a user who
+  quits from the tray mid-scan gets a traceback in `app.log`, which looks like
+  a crash to whoever reads it. One guard in `run` fixes it. Not done, because
+  it was not what the session was asked for.
 
 - The transcript of the session in which the project was written lives under
   the **old** key:

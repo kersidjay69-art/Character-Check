@@ -206,6 +206,241 @@ class TestBackground(WindowCase):
         self.assertEqual([], clear[:10])
 
 
+class TestIgnoreList(WindowCase):
+    """The topbar's ignore control: what it hides, and what it never saves."""
+
+    def setUp(self):
+        from core import analyze, scan
+        self.scan = scan
+        P = scan.PilotResult
+        self.result = scan.ScanResult(True, "local", "", [
+            P(101, "Red One", analyze.LEVEL_CYNO),
+            P(102, "Blue Two", analyze.LEVEL_INDY),
+            P(103, "Clean Three", analyze.LEVEL_NONE),
+        ])
+        self.win.clear_ignored()
+        self.win.begin_scan(3)
+        for p in self.result.pilots:
+            self.win.add_pilot(p)
+        self.win.show_result(self.result)
+        self.pump()
+
+    def tearDown(self):
+        self.win.clear_ignored()
+        self.win.clear()
+        self.pump()
+
+    def pump(self):
+        for _ in range(4):
+            self.app.processEvents()
+
+    def test_clean_pilots_are_remembered_even_though_no_row_exists(self):
+        """"Ignore everyone I just checked" means everyone. A clean pilot
+        never reaches the tree, so the tree cannot be the source."""
+        self.assertEqual([101, 102, 103], sorted(self.win._scanned_ids))
+        self.assertEqual(2, self.win.tree.topLevelItemCount())
+
+    def test_ignoring_the_selection_drops_only_that_row(self):
+        self.win.tree.setCurrentItem(self.win.tree.topLevelItem(0))
+        self.assertEqual([101], self.win._selected_ids())
+        self.win._ignore_selected()
+        self.pump()
+        self.assertEqual(1, self.win.tree.topLevelItemCount())
+
+    def test_ignoring_everything_checked_empties_the_list(self):
+        self.win._ignore_checked()
+        self.pump()
+        self.assertEqual(0, self.win.tree.topLevelItemCount())
+        self.assertEqual({101, 102, 103}, self.win.ignored_ids())
+
+    def test_clearing_brings_them_back_without_a_rescan(self):
+        """Ignoring filters on read; it never discards the answers. Otherwise
+        undoing it would cost a fresh scan of everyone."""
+        self.win._ignore_checked()
+        self.pump()
+        self.win.clear_ignored()
+        self.pump()
+        self.assertEqual(2, self.win.tree.topLevelItemCount())
+
+    def test_the_button_is_tinted_only_while_something_is_ignored(self):
+        """A filter that silently removes pilots has to say so from the
+        topbar, the same way the funnel does."""
+        plain = self.win.ignore_btn.icon().pixmap(16, 16).toImage()
+        self.win._ignore_checked()
+        self.pump()
+        tinted = self.win.ignore_btn.icon().pixmap(16, 16).toImage()
+        self.assertNotEqual(plain, tinted)
+        self.win.clear_ignored()
+        self.pump()
+        self.assertEqual(plain,
+                         self.win.ignore_btn.icon().pixmap(16, 16).toImage())
+
+    def test_the_change_is_announced_for_the_scan_thread(self):
+        """The worker lives on another thread and must never read the window,
+        so the new set is pushed to it by signal."""
+        seen = []
+        self.win.ignore_changed.connect(seen.append)
+        try:
+            self.win._ignore_checked()
+            self.pump()
+        finally:
+            self.win.ignore_changed.disconnect(seen.append)
+        self.assertEqual([{101, 102, 103}], [set(x) for x in seen])
+
+    def test_the_hint_says_how_many_are_hidden(self):
+        self.win._ignore_checked()
+        self.pump()
+        self.assertIn("3", self.win.hint.text())
+
+    def test_a_child_row_resolves_to_its_pilot(self):
+        """Evidence lines carry no pilot of their own; selecting one must
+        still ignore the pilot it sits under, not nothing at all."""
+        row = self.win.tree.topLevelItem(0)
+        if row.childCount():
+            self.win.tree.setCurrentItem(row.child(0))
+            self.assertEqual([101], self.win._selected_ids())
+
+    def test_the_ignore_list_is_never_written_to_the_config(self):
+        """⚠️ The user asked for a list that clears itself when the app
+        closes, and the only way to guarantee that is for no code anywhere to
+        be able to write it down. A future "remember everything" change would
+        otherwise persist it and the clearing would quietly stop happening."""
+        from core import config
+        before = set(config.load(force=True))
+        self.win._ignore_checked()
+        self.pump()
+        config.save(config.load())
+        after = config.load(force=True)
+        # Keys, not a substring search: persisting the list needs a key to
+        # put it under, and a bare number could match a window rectangle by
+        # accident and pass for the wrong reason.
+        self.assertEqual(before, set(after))
+        for value in after.values():
+            if isinstance(value, (list, tuple, set)):
+                self.assertNotIn(101, value)
+
+
+class TestRightClickIgnore(WindowCase):
+    """The menu's decision, not the menu.
+
+    `_context_menu` ends in `exec()`, which blocks on a modal popup and cannot
+    be driven from a test, so the choice of who gets ignored lives in
+    `_ignore_target` and that is what is checked here.
+    """
+
+    def setUp(self):
+        from core import analyze, scan
+        P = scan.PilotResult
+        F = analyze.Finding
+        finding = F(1, "hull_lost", 0.0, 11957, None, None, "combat", 833)
+        self.pilots = [P(101, "Red One", analyze.LEVEL_CYNO, [finding]),
+                       P(102, "Blue Two", analyze.LEVEL_INDY),
+                       P(103, "Grey Three", analyze.LEVEL_SEEN)]
+        self.win.clear_ignored()
+        self.win.show_result(scan.ScanResult(True, "local", "", self.pilots))
+        self.pump()
+
+    def tearDown(self):
+        self.win.clear_ignored()
+        self.win.clear()
+        self.pump()
+
+    def pump(self):
+        for _ in range(4):
+            self.app.processEvents()
+
+    def row(self, i):
+        return self.win.tree.topLevelItem(i)
+
+    def test_empty_space_offers_nothing(self):
+        self.assertIsNone(self.win._ignore_target(None))
+
+    def test_one_row_names_the_pilot(self):
+        ids, caption = self.win._ignore_target(self.row(0))
+        self.assertEqual([101], ids)
+        self.assertIn("Red One", caption)
+
+    def test_a_click_inside_a_multi_selection_takes_all_of_it(self):
+        """Right-clicking one of three highlighted rows means the three."""
+        self.win.tree.clearSelection()
+        for i in (0, 1, 2):
+            self.row(i).setSelected(True)
+        ids, caption = self.win._ignore_target(self.row(1))
+        self.assertEqual([101, 102, 103], sorted(ids))
+        self.assertIn("3", caption)
+
+    def test_a_click_outside_the_selection_takes_only_that_row(self):
+        """⚠️ The surprise this avoids: ignoring three pilots highlighted a
+        minute ago because one other name was right-clicked."""
+        self.win.tree.clearSelection()
+        self.row(0).setSelected(True)
+        self.row(1).setSelected(True)
+        ids, _caption = self.win._ignore_target(self.row(2))
+        self.assertEqual([103], ids)
+
+    def test_the_selection_is_not_moved_by_asking(self):
+        """The other half of the same surprise: a right-click that silently
+        re-highlights. `_ignore_target` only reads."""
+        self.win.tree.clearSelection()
+        self.row(0).setSelected(True)
+        before = [i.text(0) for i in self.win.tree.selectedItems()]
+        self.win._ignore_target(self.row(2))
+        self.assertEqual(before,
+                         [i.text(0) for i in self.win.tree.selectedItems()])
+
+    def test_an_evidence_row_resolves_to_its_pilot(self):
+        """A killmail line carries no pilot of its own."""
+        parent = self.row(0)
+        self.assertTrue(parent.childCount(), "fixture needs a finding")
+        ids, caption = self.win._ignore_target(parent.child(0))
+        self.assertEqual([101], ids)
+        self.assertIn("Red One", caption)
+
+
+class TestScrim(WindowCase):
+    """Labels over the backdrop get their own panel."""
+
+    def test_an_empty_cell_gets_no_panel(self):
+        """Otherwise every blank column would carry a stray dark pill."""
+        self.assertTrue(
+            results_window.scrim_rect(
+                results_window.QRect(0, 0, 100, 30), "",
+                self.win.fontMetrics()).isEmpty())
+
+    def test_the_panel_wraps_the_text_and_not_the_cell(self):
+        """A full-width panel would be a stripe, and stripes are what had to
+        go so the picture could show between the rows."""
+        cell = results_window.QRect(0, 0, 400, 30)
+        got = results_window.scrim_rect(cell, "Bob", self.win.fontMetrics())
+        self.assertLess(got.width(), cell.width())
+        self.assertGreater(got.width(), 0)
+        self.assertLessEqual(got.height(), cell.height())
+
+    def test_it_never_spills_out_of_a_narrow_cell(self):
+        cell = results_window.QRect(0, 0, 30, 30)
+        got = results_window.scrim_rect(
+            cell, "a very long pilot name indeed", self.win.fontMetrics())
+        self.assertLessEqual(got.width(), cell.width())
+
+    def test_the_name_column_has_the_scrim_delegate(self):
+        self.assertIsInstance(
+            self.win.tree.itemDelegateForColumn(results_window._COL_NAME),
+            results_window.NameDelegate)
+
+    def test_stripes_are_off(self):
+        """⚠️ Alternating colours paint an opaque row background, which over
+        the artwork is a venetian blind."""
+        self.assertFalse(self.win.tree.alternatingRowColors())
+
+
+class TestTopbarStaysNarrow(WindowCase):
+    def test_the_seventh_button_did_not_widen_the_topbar(self):
+        """Measured: six buttons at 10 px of spacing and seven at 4 px come to
+        the same 283. The tighter cluster is what paid for the new button, and
+        if somebody loosens the spacing again this is what notices."""
+        self.assertLessEqual(self.win.topbar.minimumSizeHint().width(), 290)
+
+
 class TestBackdrop(WindowCase):
     """The picture an idle window shows, and the places it must not appear."""
 
@@ -231,17 +466,24 @@ class TestBackdrop(WindowCase):
                 for y in range(0, image.height(), 7)}
         self.assertGreater(len(seen), 50)
 
-    def test_rows_get_a_flat_panel_and_not_artwork(self):
-        """A pilot's name is the verdict -- it is never read against a
-        picture. The backdrop is what an EMPTY window shows, so one row is
-        enough to take it away entirely."""
+    def test_the_picture_stays_once_there_are_rows(self):
+        """⚠️ This test used to assert the exact opposite, and the reversal is
+        deliberate rather than a slip.
+
+        The old rule was "a pilot's name is the verdict and must never be read
+        against artwork", so one row took the picture away entirely. The rule
+        now is that a name is never read against BARE artwork: every label in
+        the tree sits on a rounded translucent panel, and the picture stays.
+        If this ever goes back to asserting one flat colour, `draw_scrim` and
+        the emptiness test in `_paint_backdrop` have to come back together.
+        """
         from PySide6.QtWidgets import QTreeWidgetItem
         self.win.tree.addTopLevelItem(QTreeWidgetItem(["someone", "", ""]))
         self.pump()
         image = self.viewport_shot()
         low = image.height() - 20            # well below the single row
         seen = {image.pixel(x, low) for x in range(0, image.width(), 7)}
-        self.assertEqual(1, len(seen))
+        self.assertGreater(len(seen), 10)
 
     def test_clearing_brings_it_back(self):
         """Nothing in the window watches the row count: the model's own

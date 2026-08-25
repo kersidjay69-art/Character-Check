@@ -15,7 +15,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import analyze, scan as scan_mod, zkb  # noqa: E402
+from core import analyze, config, scan as scan_mod, zkb  # noqa: E402
 from core.analyze import (  # noqa: E402
     ALL_EVIDENCE, Filters, LEVEL_CYNO, LEVEL_HULL, LEVEL_INDY, LEVEL_NONE,
     LEVEL_SEEN,
@@ -194,6 +194,104 @@ class TestProven(unittest.TestCase):
         f = analyze.Finding(1, analyze.KIND_HULL_LOST, 0.0, FALCON, None,
                             None, "combat", 833)
         self.assertFalse(scan_mod._proven([f]))
+
+
+class TestIgnoreList(unittest.TestCase):
+    """The session ignore list, at the level where it has to pay.
+
+    Hiding rows would have been the easy version. The point of applying it
+    inside `scan_text` is that an ignored pilot costs NO cache lookup and NO
+    request -- so what these tests watch is the two things that would have
+    happened, not the rows that did not appear.
+
+    Nothing here touches the network: ESI, zKillboard and the cache are all
+    replaced.
+    """
+
+    def setUp(self):
+        from core import cache, esi
+        self.calls = []
+        self.cache_reads = []
+        self._esi, self._zkb = esi.resolve_names, zkb.iter_killmails
+        self._get = cache.get_pilot
+        self.cache = cache
+        self.esi = esi
+
+        def resolve(names):
+            # Three pilots, ids 101/102/103, whatever was pasted.
+            return {n.casefold(): (100 + i + 1, n)
+                    for i, n in enumerate(names)}
+
+        def killmails(character_id, kind, max_pages=1, start_page=1,
+                      stop=None):
+            self.calls.append(character_id)
+            return iter(())
+
+        def get_pilot(character_id):
+            self.cache_reads.append(character_id)
+            return None
+
+        esi.resolve_names = resolve
+        zkb.iter_killmails = killmails
+        cache.get_pilot = get_pilot
+
+    def tearDown(self):
+        self.esi.resolve_names = self._esi
+        zkb.iter_killmails = self._zkb
+        self.cache.get_pilot = self._get
+
+    PASTE = "Alpha One\nBravo Two\nCharlie Three\n"
+
+    def scan(self, ignore=()):
+        return scan_mod.scan_text(self.PASTE, cfg=dict(config.DEFAULTS),
+                                  ignore_ids=ignore)
+
+    def test_without_a_list_every_pilot_is_fetched(self):
+        result = self.scan()
+        self.assertTrue(result.accepted)
+        self.assertEqual([101, 102, 103], sorted(self.calls))
+        self.assertEqual(0, result.ignored)
+
+    def test_an_ignored_pilot_costs_no_request(self):
+        self.scan(ignore={102})
+        self.assertEqual([101, 103], sorted(self.calls))
+
+    def test_an_ignored_pilot_is_not_even_looked_up_in_the_cache(self):
+        """The filter sits BEFORE the cache read on purpose. A cached fleet
+        would otherwise still be fetched from disk and then thrown away."""
+        self.scan(ignore={102})
+        self.assertNotIn(102, self.cache_reads)
+
+    def test_an_ignored_pilot_is_not_in_the_result(self):
+        result = self.scan(ignore={102})
+        self.assertEqual([101, 103],
+                         sorted(p.character_id for p in result.pilots))
+
+    def test_the_count_of_what_was_dropped_comes_back(self):
+        """Without it a scan that quietly halves a paste looks broken."""
+        self.assertEqual(2, self.scan(ignore={101, 103}).ignored)
+
+    def test_the_progress_total_counts_what_will_be_scanned(self):
+        """"checked 3 of 12" has to mean twelve pilots somebody is actually
+        going to look at, not twelve minus however many were skipped."""
+        seen = []
+        scan_mod.scan_text(self.PASTE, cfg=dict(config.DEFAULTS),
+                           ignore_ids={102},
+                           on_stage=lambda st, n: seen.append((st, n)))
+        self.assertIn((scan_mod.STAGE_SCANNING, 2), seen)
+
+    def test_ignoring_everyone_is_an_empty_answer_and_not_a_refusal(self):
+        """A refusal puts a "skipped:" line on screen and means the paste was
+        junk. Ignoring the whole fleet is neither."""
+        result = self.scan(ignore={101, 102, 103})
+        self.assertTrue(result.accepted)
+        self.assertEqual([], result.pilots)
+        self.assertEqual(3, result.ignored)
+        self.assertEqual([], self.calls)
+
+    def test_an_unknown_id_in_the_list_changes_nothing(self):
+        self.scan(ignore={999})
+        self.assertEqual([101, 102, 103], sorted(self.calls))
 
 
 if __name__ == "__main__":
