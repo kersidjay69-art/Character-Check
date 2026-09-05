@@ -38,9 +38,18 @@ stored in this repository and none belongs here.** The traffic endpoints
 require push access, so this works for the owner of the repository and returns
 403 for anyone else — which is the correct answer, not a bug to work around.
 
-The CSVs are in `.gitignore`. They are one person's copy of their own
-repository's numbers, and committing a snapshot a day would be a commit a day
-of churn; the collector is tracked, its output is not.
+**The CSVs are committed** (2026-09-05, reversing the rule that used to be
+here). The churn argument was real — a snapshot a day is a commit a day — and
+it lost to a simpler fact: this data cannot be re-fetched. Fourteen days after
+the event GitHub has no answer to give, so the only copy that exists is the
+one on disk, and a copy that exists on exactly one disk is not a record. The
+run log stays ignored: it says how a collection went, not what was measured.
+
+⚠️ That makes the CSVs **append-mostly files that two machines must not both
+write**. `collect.py` merges by date, so a run corrects its own day rather than
+doubling it, but two clones collecting the same day and both committing is an
+ordinary merge conflict in a file nobody wants to resolve by hand. One
+collector, one machine — the scheduled task below.
 
 ## Running it daily
 

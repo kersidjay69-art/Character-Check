@@ -279,7 +279,7 @@ core/            Qt-free core (invariant 1)
 assets/          icon.png (exe AND window logo), background.png (idle window)
   make_background.py  the backdrop's generator -- needs cv2, never imported
 sde/             build_cyno_sets.py -> cyno_sets.json (artifact, committed)
-stats/           collect.py -> traffic/download CSVs (data gitignored)
+stats/           collect.py -> traffic/download CSVs (committed: GitHub forgets)
 ui/              Qt lives only here
   styles.py      palette and QSS -- the same as Jump Planner's
   tray.py        tray icon and the scan thread (no notifications)
@@ -1123,6 +1123,13 @@ taken at the time or not at all. `stats/collect.py` takes it daily (a Windows
 scheduled task here) and merges the window into `stats/*.csv` by date. See
 `stats/README.md`; the download counter there is a cumulative total, not a
 daily figure, and counts bots along with people.
+
+⚠️ **The CSVs are committed** since 2026-09-05, reversing the churn argument
+that kept them in `.gitignore`. A measurement that cannot be retaken is not
+backed up by living on one disk. The consequence is that `stats/` must be
+collected from **one machine only** — `collect.py` merges by date and so
+corrects its own day, but two clones committing the same day is a hand merge
+of a CSV. `stats/collect.log` stays ignored.
 
 ## Status
 

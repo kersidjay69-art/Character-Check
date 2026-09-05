@@ -19,10 +19,10 @@ dist/
 # keeps the folder itself out too.
 cache/
 
-# Collected statistics (stats/collect.py). The numbers belong to whoever owns
-# the repository -- the traffic endpoints answer nobody else -- and a daily
-# snapshot committed by hand would be a commit a day of pure churn. The
-# collector itself is tracked; what it writes is not. Delete these two lines
-# if the history is worth keeping in git after all.
-stats/*.csv
+# Collected statistics (stats/collect.py). The CSVs used to be ignored here on
+# the churn argument; that was reversed on request 2026-09-05, and the reason
+# it was right to reverse is that this data CANNOT be re-fetched -- GitHub's
+# traffic API forgets everything older than 14 days, so an unbacked-up copy is
+# one dead disk away from gone. The run log stays out: it is one line per run
+# about how the collection went, not the measurement itself.
 stats/collect.log
