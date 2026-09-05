@@ -18,11 +18,3 @@ dist/
 # running from sources drops it here. *.db above already covers the file; this
 # keeps the folder itself out too.
 cache/
-
-# Collected statistics (stats/collect.py). The CSVs used to be ignored here on
-# the churn argument; that was reversed on request 2026-09-05, and the reason
-# it was right to reverse is that this data CANNOT be re-fetched -- GitHub's
-# traffic API forgets everything older than 14 days, so an unbacked-up copy is
-# one dead disk away from gone. The run log stays out: it is one line per run
-# about how the collection went, not the measurement itself.
-stats/collect.log

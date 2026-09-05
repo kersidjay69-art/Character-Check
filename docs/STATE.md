@@ -1,6 +1,6 @@
 # Project state
 
-Snapshot: **2026-08-25**. Update this file at the end of a session rather than
+Snapshot: **2026-09-05**. Update this file at the end of a session rather than
 starting a second one.
 
 `CLAUDE.md` is the project map and the invariants, and is read automatically.
@@ -50,6 +50,17 @@ cost a live experiment, and the detail is further down this file:
 - send the enquiry in `Desktop\CC\CCP-запрос\` — written, never sent. See
   open question 4 at the foot of this file for why a support ticket is the
   only channel that yields a written answer.
+
+**Traffic collection is over.** `stats/*.csv` was committed on request
+(2026-09-05) and the collector removed in the same breath: the numbers run
+2026-08-10 to 2026-09-05 and stop. The files stay because GitHub's traffic API
+forgets anything older than 14 days, so not one row in them could be
+regenerated — they are a closed record. The daily Windows task
+**Character Check stats** was unregistered; `stats/collect.py` is recoverable
+from git history and `stats/README.md` says how, along with the trap that
+matters if it ever comes back (collect from one machine, or two clones
+committing the same day is a CSV merge by hand). ⚠️ It was removed because it
+was no longer wanted, not because it broke — do not rewrite it unprompted.
 
 ⚠️ **The 0.3 executable has not been scanned.** The two-engine figure quoted
 throughout this file is the 0.2 build, and a detection count is only worth

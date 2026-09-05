@@ -15,7 +15,6 @@ python -m core.console --once F --potential  # filters: see "What is searched fo
 python -m core.console --once F --no-industrial --all-cyno
 python sde/build_cyno_sets.py                # rebuild the cyno sets from the SDE
 python assets/make_background.py SRC.jfif    # rebuild assets/background.png (needs cv2)
-python stats/collect.py                      # snapshot GitHub traffic -> stats/*.csv
 python -m unittest discover -s tests         # 380 tests, none touching the network
 python build.py --dest "C:/somewhere"        # build -> dist/CharacterCheck/
 python build.py --onefile                    # one file instead of a folder
@@ -279,7 +278,7 @@ core/            Qt-free core (invariant 1)
 assets/          icon.png (exe AND window logo), background.png (idle window)
   make_background.py  the backdrop's generator -- needs cv2, never imported
 sde/             build_cyno_sets.py -> cyno_sets.json (artifact, committed)
-stats/           collect.py -> traffic/download CSVs (committed: GitHub forgets)
+stats/           traffic CSVs, 2026-08-10..09-05. Closed: the collector is gone
 ui/              Qt lives only here
   styles.py      palette and QSS -- the same as Jump Planner's
   tray.py        tray icon and the scan thread (no notifications)
@@ -1117,19 +1116,18 @@ git tag -a v0.3 -m "..." && git push origin v0.3
 That was the state for the first hours after publication: the whole pipeline
 existed and had never been triggered.
 
-⚠️ **GitHub's traffic API answers for the last 14 days and then forgets.**
-Views and clones are not a report to be pulled later — they are a measurement
-taken at the time or not at all. `stats/collect.py` takes it daily (a Windows
-scheduled task here) and merges the window into `stats/*.csv` by date. See
-`stats/README.md`; the download counter there is a cumulative total, not a
-daily figure, and counts bots along with people.
+**Traffic statistics were collected, and are not any more.** `stats/*.csv`
+holds 2026-08-10 to 2026-09-05 — publication and the first three releases —
+and stops there: the collector was removed on request 2026-09-05 and its daily
+Windows task unregistered. The files stay because GitHub's traffic API answers
+for the **last 14 days** and then forgets, so nothing in them could be
+regenerated; they are a closed record rather than a live one.
 
-⚠️ **The CSVs are committed** since 2026-09-05, reversing the churn argument
-that kept them in `.gitignore`. A measurement that cannot be retaken is not
-backed up by living on one disk. The consequence is that `stats/` must be
-collected from **one machine only** — `collect.py` merges by date and so
-corrects its own day, but two clones committing the same day is a hand merge
-of a CSV. `stats/collect.log` stays ignored.
+⚠️ **Do not write a new collector without being asked.** The whole story —
+what each column means, which three are cumulative snapshots rather than daily
+figures, why the download counter includes bots, and how to restore
+`collect.py` from git history — is in `stats/README.md`. It was removed
+because it was no longer wanted, not because it broke.
 
 ## Status
 

@@ -1,18 +1,15 @@
-# stats — the numbers GitHub forgets
+# stats — a closed record
 
-GitHub's traffic API answers for the **last 14 days only**, and the days that
-fall out of that window are gone: there is no deeper history to request, on the
-site or through the API. Views and clones are therefore not a report you can
-pull later — they are a measurement you either took at the time or did not.
+GitHub's traffic API answers for the **last 14 days only**. The days that fall
+out of that window are gone: there is no deeper history to request, on the site
+or through the API. So these CSVs are not a report that could be regenerated —
+they are measurements that were taken at the time, between **2026-08-10 and
+2026-09-05**, covering the project's publication and its first three releases.
 
-`collect.py` is that measurement. Run it once a day; each run merges the
-rolling window into the CSVs here, keyed by date, so re-running on the same day
-corrects that day rather than doubling it, and a day recorded once is kept
-forever.
-
-```bash
-python stats/collect.py
-```
+⚠️ **The collector was removed on 2026-09-05, on request.** Nothing writes to
+this folder any more, and the daily Windows task that used to run it has been
+unregistered. What is here is frozen: it will neither grow nor be corrected.
+Reading a date later than 2026-09-05 into these files is a mistake.
 
 | file | columns | what it is |
 |---|---|---|
@@ -22,7 +19,6 @@ python stats/collect.py
 | `referrers.csv` | date, referrer, count, uniques | GitHub's own 14-day aggregate, sampled |
 | `paths.csv` | date, path, count, uniques | the same |
 | `repo.csv` | date, stars, watchers, forks | sampled |
-| `collect.log` | | one line per run, including failures |
 
 ⚠️ Three of those are **snapshots of a running total, not daily figures**. The
 release download counter only ever grows, and referrers/paths are what GitHub
@@ -33,33 +29,34 @@ the difference between two dates, never the value on one.
 by the same person. There is no unique-downloaders figure and it cannot be
 derived. Clones of the repository are not in it either; that is `clones.csv`.
 
-Authentication is `gh`, already logged in on this machine. **No token is
-stored in this repository and none belongs here.** The traffic endpoints
-require push access, so this works for the owner of the repository and returns
-403 for anyone else — which is the correct answer, not a bug to work around.
+## What the record says
 
-**The CSVs are committed** (2026-09-05, reversing the rule that used to be
-here). The churn argument was real — a snapshot a day is a commit a day — and
-it lost to a simpler fact: this data cannot be re-fetched. Fourteen days after
-the event GitHub has no answer to give, so the only copy that exists is the
-one on disk, and a copy that exists on exactly one disk is not a record. The
-run log stays ignored: it says how a collection went, not what was measured.
+At the close, over the whole period: **66 views / 14 unique**, **82 clones /
+24 unique**, **8 release downloads** (v0.2 — 5, v0.1 — 1, v0.3 — 1, plus one
+`SHA256SUMS.txt`), **0 stars**. Traffic is one spike on 2026-08-23–25, the days
+the project was published and v0.2 was tagged, and near-silence afterwards.
+Referrers were GitHub itself and Bing.
 
-⚠️ That makes the CSVs **append-mostly files that two machines must not both
-write**. `collect.py` merges by date, so a run corrects its own day rather than
-doubling it, but two clones collecting the same day and both committing is an
-ordinary merge conflict in a file nobody wants to resolve by hand. One
-collector, one machine — the scheduled task below.
+## If it is ever wanted back
 
-## Running it daily
+`stats/collect.py` is in git history — it authenticated through `gh`, merged
+the rolling window into these files by date, and appended a line per run to
+`stats/collect.log`:
 
-On this machine it is a Windows scheduled task named **Character Check stats**,
-firing at 12:00 with *Start the task as soon as possible after a scheduled
-start is missed* — a laptop that was closed at noon would otherwise lose that
-day for good once it ages past 14.
-
-```powershell
-Get-ScheduledTaskInfo -TaskName "Character Check stats"   # last result, next run
-Start-ScheduledTask   -TaskName "Character Check stats"   # run it now
-Unregister-ScheduledTask -TaskName "Character Check stats" -Confirm:$false
+```bash
+git log --diff-filter=D --oneline -- stats/collect.py   # the commit that removed it
+git show <commit>^:stats/collect.py > stats/collect.py  # bring it back
 ```
+
+It ran here as a Windows scheduled task named **Character Check stats**, daily
+at 12:00, `pythonw.exe stats\collect.py` with the project root as the working
+directory and *Start the task as soon as possible after a scheduled start is
+missed* set — a laptop closed at noon would otherwise lose that day for good
+once it aged past 14. The traffic endpoints require push access, so it worked
+for the owner of the repository and answered 403 to anyone else, which is
+correct rather than a bug to work around. No token was ever stored here and
+none belongs here.
+
+⚠️ If it does come back: collect from **one machine only**. It merges by date,
+so a re-run corrects its own day instead of doubling it, but two clones
+committing the same day is a CSV merge conflict resolved by hand.
